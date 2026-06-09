@@ -36,10 +36,15 @@ class OrgResponse(BaseModel):
     members: list[MemberResponse] = []
 
 
-class InviteMemberRequest(BaseModel):
+class WardListItem(BaseModel):
+    """Lightweight ward entry — for the citizen ward picker (no member data)."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    slug: str
+
+
+class AddMemberRequest(BaseModel):
+    """Assign an existing user as ward staff (always ward_officer)."""
     user_id: UUID
-    role: OrgRole = OrgRole.member
-
-
-class UpdateMemberRoleRequest(BaseModel):
-    role: OrgRole

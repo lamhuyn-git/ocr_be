@@ -3,13 +3,14 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class RegisterRequest(BaseModel):
-    email: EmailStr
+    national_id: str = Field(pattern=r"^\d{12}$", description="CCCD — 12 chữ số")
     password: str = Field(min_length=8)
     full_name: str | None = None
+    email: EmailStr | None = None
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    national_id: str = Field(pattern=r"^\d{12}$", description="CCCD — 12 chữ số")
     password: str
 
 

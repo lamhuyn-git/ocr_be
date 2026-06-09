@@ -45,22 +45,41 @@ async def get_current_superuser(current_user: User = Depends(get_current_user)) 
     return current_user
 
 
-def require_org_role(*roles: OrgRole):
-    """Dependency factory — checks the user has one of the given roles in the org."""
+async def get_user_ward_ids(user: User, db: AsyncSession) -> list[UUID]:
+    """Ward (organization) ids the user is a staff member of."""
+    rows = (
+        await db.execute(
+            select(OrganizationMember.org_id).where(OrganizationMember.user_id == user.id)
+        )
+    ).scalars().all()
+    return list(rows)
+
+
+async def get_user_membership(
+    org_id: UUID, user: User, db: AsyncSession
+) -> OrganizationMember | None:
+    return (
+        await db.execute(
+            select(OrganizationMember).where(
+                OrganizationMember.org_id == org_id,
+                OrganizationMember.user_id == user.id,
+            )
+        )
+    ).scalar_one_or_none()
+
+
+def require_ward_role(*roles: OrgRole):
+    """Dependency factory — super_admin bypasses; otherwise user must hold one of
+    the given roles in the ward (`org_id` path/query param).
+    Returns the membership, or None when the caller is a super_admin."""
     async def check(
         org_id: UUID,
         current_user: User = Depends(get_current_user),
         db: AsyncSession = Depends(get_db),
-    ) -> OrganizationMember:
-        membership = (
-            await db.execute(
-                select(OrganizationMember).where(
-                    OrganizationMember.org_id == org_id,
-                    OrganizationMember.user_id == current_user.id,
-                )
-            )
-        ).scalar_one_or_none()
-
+    ) -> OrganizationMember | None:
+        if current_user.is_superuser:
+            return None
+        membership = await get_user_membership(org_id, current_user, db)
         if not membership:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
         if membership.role not in roles:
@@ -68,3 +87,16 @@ def require_org_role(*roles: OrgRole):
         return membership
 
     return check
+
+
+async def assert_form_ward_access(form, current_user: User, db: AsyncSession) -> None:
+    """Allow access to a form if: super_admin, the submitting citizen, or staff of the form's ward."""
+    if current_user.is_superuser:
+        return
+    if form.created_by == current_user.id:
+        return
+    if form.org_id is not None:
+        membership = await get_user_membership(form.org_id, current_user, db)
+        if membership:
+            return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")

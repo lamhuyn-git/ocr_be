@@ -9,7 +9,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.database import Base
-from app.models import ocr  # noqa: F401 — registers models
+import app.models  # noqa: F401 — registers all models on Base.metadata
 from app.config import get_settings
 
 config = context.config

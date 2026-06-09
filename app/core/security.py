@@ -30,7 +30,6 @@ def create_access_token(subject: str) -> str:
 
 
 def create_refresh_token(subject: str) -> tuple[str, datetime]:
-    """Returns (raw_token, expires_at)."""
     expire = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
     token = jwt.encode(
         {"sub": subject, "exp": expire, "type": "refresh"},

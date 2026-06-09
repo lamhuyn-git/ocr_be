@@ -14,19 +14,32 @@ from app.core.security import (
     hash_password, verify_password, hash_token,
     create_access_token, create_refresh_token, decode_token,
 )
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_current_superuser
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 bearer = HTTPBearer()
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    existing = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
-    if existing:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+async def register(
+    body: RegisterRequest,
+    _: User = Depends(get_current_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    dup_id = (await db.execute(select(User).where(User.national_id == body.national_id))).scalar_one_or_none()
+    if dup_id:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="National ID already registered")
+    if body.email:
+        dup_email = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
+        if dup_email:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
-    user = User(email=body.email, hashed_password=hash_password(body.password), full_name=body.full_name)
+    user = User(
+        national_id=body.national_id,
+        email=body.email,
+        hashed_password=hash_password(body.password),
+        full_name=body.full_name,
+    )
     db.add(user)
     await db.flush()
     await db.refresh(user)
@@ -35,7 +48,7 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
-    user = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
+    user = (await db.execute(select(User).where(User.national_id == body.national_id))).scalar_one_or_none()
     if not user or not verify_password(body.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if not user.is_active:
@@ -69,7 +82,7 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
         await db.execute(
             select(RefreshToken).where(
                 RefreshToken.token_hash == token_hash,
-                RefreshToken.is_revoked == False,  # noqa: E712
+                RefreshToken.is_revoked == False,
             )
         )
     ).scalar_one_or_none()
@@ -77,7 +90,6 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     if not stored or stored.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
         raise credentials_exc
 
-    # Rotate: revoke old, issue new
     stored.is_revoked = True
     new_access = create_access_token(user_id)
     raw_refresh, expires_at = create_refresh_token(user_id)

@@ -8,9 +8,9 @@ from app.database import Base
 
 
 class OrgRole(str, enum.Enum):
-    owner = "owner"
-    admin = "admin"
-    member = "member"
+    # 3-tier model: a ward membership means "cán bộ phường". Single staff role for now;
+    # super_admin (users.is_superuser) manages wards + staff globally.
+    ward_officer = "ward_officer"
 
 
 class Organization(Base):
@@ -32,7 +32,7 @@ class OrganizationMember(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     org_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    role = Column(Enum(OrgRole), default=OrgRole.member, nullable=False)
+    role = Column(Enum(OrgRole), default=OrgRole.ward_officer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     organization = relationship("Organization", back_populates="members")

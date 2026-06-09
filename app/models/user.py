@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime, Text
+from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -10,7 +10,9 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email = Column(String(255), unique=True, nullable=False, index=True)
+    # CCCD — định danh đăng nhập của người dùng nội bộ (tương tự VNeID).
+    national_id = Column(String(20), unique=True, index=True, nullable=True)
+    email = Column(String(255), unique=True, nullable=True, index=True)
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
@@ -26,7 +28,8 @@ class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"),
+                     nullable=False, index=True)
     token_hash = Column(String(512), nullable=False, unique=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     is_revoked = Column(Boolean, default=False, nullable=False)
