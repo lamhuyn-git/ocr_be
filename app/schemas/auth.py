@@ -10,7 +10,13 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
+    """Citizen login — by CCCD."""
     national_id: str = Field(pattern=r"^\d{12}$", description="CCCD — 12 chữ số")
+    password: str
+
+
+class StaffLoginRequest(BaseModel):
+    email: EmailStr
     password: str
 
 

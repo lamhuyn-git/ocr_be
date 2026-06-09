@@ -11,6 +11,7 @@ class UserResponse(BaseModel):
     national_id: str | None
     email: str | None
     full_name: str | None
+    role: str | None = None       # super_admin | ward_officer | citizen (set by /me)
     is_active: bool
     is_superuser: bool
     created_at: datetime

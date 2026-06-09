@@ -63,11 +63,50 @@ async def test_register_bad_cccd_format(client, make_user):
 
 async def test_login_by_cccd(client, make_user):
     await make_user(national_id="121212121212", password="secret12")
-    ok = await client.post("/api/v1/auth/login",
+    ok = await client.post("/api/v1/auth/login/citizen",
                            json={"national_id": "121212121212", "password": "secret12"})
     assert ok.status_code == 200
     assert "access_token" in ok.json()
 
-    bad = await client.post("/api/v1/auth/login",
+    bad = await client.post("/api/v1/auth/login/citizen",
                             json={"national_id": "121212121212", "password": "wrongpass"})
     assert bad.status_code == 401
+
+
+async def test_staff_login_by_email(client, db_session, make_user, make_ward, make_officer):
+    # ward_officer with email account → can use staff login
+    officer = await make_user(email="officer@ward.gov", password="secret12")
+    ward = await make_ward()
+    await make_officer(officer, ward)
+    ok = await client.post("/api/v1/auth/login/staff",
+                           json={"email": "officer@ward.gov", "password": "secret12"})
+    assert ok.status_code == 200 and "access_token" in ok.json()
+
+    # wrong password → 401
+    bad = await client.post("/api/v1/auth/login/staff",
+                            json={"email": "officer@ward.gov", "password": "nope1234"})
+    assert bad.status_code == 401
+
+
+async def test_staff_login_rejects_citizen(client, make_user):
+    # citizen has an email but no membership → blocked from staff door
+    await make_user(email="citizen@x.com", password="secret12")
+    r = await client.post("/api/v1/auth/login/staff",
+                          json={"email": "citizen@x.com", "password": "secret12"})
+    assert r.status_code == 403
+
+
+async def test_me_returns_profile_and_role(client, db_session, make_user, make_ward, make_officer):
+    officer = await make_user(national_id="151515151515")
+    ward = await make_ward()
+    await make_officer(officer, ward)
+    r = await client.get("/api/v1/auth/me", headers=auth(officer))
+    assert r.status_code == 200
+    body = r.json()
+    assert body["national_id"] == "151515151515"
+    assert body["role"] == "ward_officer"
+    assert "full_name" in body  # FE maps full_name → name
+
+    citizen = await make_user()
+    rc = await client.get("/api/v1/auth/me", headers=auth(citizen))
+    assert rc.json()["role"] == "citizen"

@@ -45,6 +45,14 @@ async def get_current_superuser(current_user: User = Depends(get_current_user)) 
     return current_user
 
 
+async def get_user_role(user: User, db: AsyncSession) -> str:
+    """Derived role for the 3-tier model: super_admin > ward_officer > citizen."""
+    if user.is_superuser:
+        return "super_admin"
+    ward_ids = await get_user_ward_ids(user, db)
+    return "ward_officer" if ward_ids else "citizen"
+
+
 async def get_user_ward_ids(user: User, db: AsyncSession) -> list[UUID]:
     """Ward (organization) ids the user is a staff member of."""
     rows = (
