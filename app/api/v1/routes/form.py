@@ -39,7 +39,7 @@ _ALLOWED_IMAGE_EXTS = {"jpg", "jpeg", "png", "bmp", "tiff", "webp"}
 
 
 
-@router.post("/types", response_model=FormTypeResponse, status_code=status.HTTP_201_CREATED, summary="Create a form type")
+@router.post("/type", response_model=FormTypeResponse, status_code=status.HTTP_201_CREATED, summary="Create a form type")
 async def create_form_type(
     type_name: str = Form(..., description="Mã loại form, vd 'ct01'"),
     _: User = Depends(get_current_superuser),
@@ -53,6 +53,17 @@ async def create_form_type(
     await db.flush()
     await db.refresh(form_type)
     return form_type
+
+
+@router.get("/type", response_model=list[FormTypeResponse], summary="List all form types")
+async def list_form_types(
+    _: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = (
+        await db.execute(select(FormType).order_by(FormType.created_at.desc()))
+    ).scalars().all()
+    return list(rows)
 
 
 @router.post("/templates", response_model=FormTemplateResponse, status_code=status.HTTP_201_CREATED, summary="Upload a template version")
