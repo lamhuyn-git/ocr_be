@@ -45,8 +45,25 @@ async def get_current_superuser(current_user: User = Depends(get_current_user)) 
     return current_user
 
 
+async def get_current_staff(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """Allow super_admin OR any ward_officer (staff of any ward). Not ward-scoped —
+    use require_ward_role(...) when the action is tied to a specific org_id."""
+    if current_user.is_superuser:
+        return current_user
+    has_membership = (
+        await db.execute(
+            select(OrganizationMember.id).where(OrganizationMember.user_id == current_user.id).limit(1)
+        )
+    ).scalar_one_or_none()
+    if not has_membership:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
+    return current_user
+
+
 async def get_user_role(user: User, db: AsyncSession) -> str:
-    """Derived role for the 3-tier model: super_admin > ward_officer > citizen."""
     if user.is_superuser:
         return "super_admin"
     ward_ids = await get_user_ward_ids(user, db)
@@ -101,7 +118,7 @@ async def assert_form_ward_access(form, current_user: User, db: AsyncSession) ->
     """Allow access to a form if: super_admin, the submitting citizen, or staff of the form's ward."""
     if current_user.is_superuser:
         return
-    if form.created_by == current_user.id:
+    if form.user_id == current_user.id:
         return
     if form.org_id is not None:
         membership = await get_user_membership(form.org_id, current_user, db)

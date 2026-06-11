@@ -9,7 +9,7 @@ from app.database import engine, Base
 from app.api.v1.routes import api_router
 
 # Import all models so Base.metadata knows about every table
-from app.models import user, organization, ocr, form  # noqa: F401
+from app.models import user, organization, province, form  # noqa: F401
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,10 +18,9 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Schema is owned by Alembic migrations (do NOT use create_all — it conflicts with
+    # migrations: it creates missing tables but never alters existing ones).
     os.makedirs(settings.upload_dir, exist_ok=True)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables created/verified")
     yield
     await engine.dispose()
 

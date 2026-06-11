@@ -12,22 +12,14 @@ class Settings(BaseSettings):
     paddleocr_lang: str = "en"
     debug: bool = True
 
+    # OCR pipeline (ocr-pipeline package) — chọn model fine-tune trong models/{version}/inference
+    ocr_model_version: str = "paddle_v12"
+
     # Auth
     secret_key: str = "change-me-in-production-use-a-long-random-string"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
-
-    # Seed (scripts/seed_admin.py) — initial accounts for an internal, admin-provisioned system
-    seed_admin_national_id: str = "000000000001"
-    seed_admin_password: str = "change-me-admin"
-    seed_admin_email: str | None = "superadmin@local"
-    seed_admin_full_name: str = "Super Admin"
-    seed_ward_officer_national_id: str = "000000000002"
-    seed_ward_officer_password: str = "change-me-ward"
-    seed_ward_officer_full_name: str = "Ward Officer"
-    seed_ward_name: str = "Phường Mẫu"
-    seed_ward_slug: str = "phuong-mau"
 
     @property
     def allowed_ext_set(self) -> set[str]:

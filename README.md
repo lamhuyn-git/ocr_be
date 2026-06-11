@@ -31,14 +31,14 @@ uvicorn app.main:app --reload
 
 ## API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/v1/ocr/upload` | Upload file, process async (returns job ID) |
-| `POST` | `/api/v1/ocr/process-sync` | Upload + process synchronously (returns full result) |
-| `GET` | `/api/v1/ocr/jobs` | List all jobs (paginated, filterable by status) |
-| `GET` | `/api/v1/ocr/jobs/{id}` | Get job result by ID |
-| `DELETE` | `/api/v1/ocr/jobs/{id}` | Delete job and its file |
-| `GET` | `/health` | Health check |
+| Method   | Path                       | Description                                          |
+| -------- | -------------------------- | ---------------------------------------------------- |
+| `POST`   | `/api/v1/ocr/upload`       | Upload file, process async (returns job ID)          |
+| `POST`   | `/api/v1/ocr/process-sync` | Upload + process synchronously (returns full result) |
+| `GET`    | `/api/v1/ocr/jobs`         | List all jobs (paginated, filterable by status)      |
+| `GET`    | `/api/v1/ocr/jobs/{id}`    | Get job result by ID                                 |
+| `DELETE` | `/api/v1/ocr/jobs/{id}`    | Delete job and its file                              |
+| `GET`    | `/health`                  | Health check                                         |
 
 Interactive docs: http://localhost:8000/docs
 

@@ -1,11 +1,3 @@
-"""
-/api/v1/organizations — Ward (phường) management.
-
-Roles (3-tier):
-- super_admin (is_superuser): create/update/delete wards, assign/remove staff, see everything.
-- ward_officer: staff that processes/reviews forms of own ward(s).
-- citizen (no membership): may LIST wards (to pick one when submitting a form).
-"""
 from __future__ import annotations
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -14,6 +6,7 @@ from sqlalchemy import select
 
 from app.database import get_db
 from app.models.organization import Organization, OrganizationMember, OrgRole
+from app.models.province import Province
 from app.models.user import User
 from app.schemas.organization import (
     OrgCreate, OrgUpdate, OrgResponse, MemberResponse, WardListItem, AddMemberRequest,
@@ -35,8 +28,10 @@ async def create_organization(
     existing = (await db.execute(select(Organization).where(Organization.slug == body.slug))).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Slug already taken")
+    if body.province_id is not None and not await db.get(Province, body.province_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Province not found")
 
-    org = Organization(name=body.name, slug=body.slug)
+    org = Organization(name=body.name, slug=body.slug, province_id=body.province_id)
     db.add(org)
     await db.flush()
     await db.refresh(org)
@@ -45,31 +40,14 @@ async def create_organization(
 
 @router.get("", response_model=list[WardListItem])
 async def list_wards(
+    province_id: UUID | None = None,
     _: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all wards (lightweight). Any authenticated user — citizens use this to pick a ward."""
-    orgs = (
-        await db.execute(select(Organization).order_by(Organization.name))
-    ).scalars().all()
-    return list(orgs)
-
-
-@router.get("/mine", response_model=list[OrgResponse])
-async def list_my_organizations(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Wards the current user is a staff member of (ward_officer)."""
-    memberships = (
-        await db.execute(
-            select(OrganizationMember).where(OrganizationMember.user_id == current_user.id)
-        )
-    ).scalars().all()
-    org_ids = [m.org_id for m in memberships]
-    if not org_ids:
-        return []
-    orgs = (await db.execute(select(Organization).where(Organization.id.in_(org_ids)))).scalars().all()
+    query = select(Organization).order_by(Organization.name)
+    if province_id is not None:
+        query = query.where(Organization.province_id == province_id)
+    orgs = (await db.execute(query)).scalars().all()
     return list(orgs)
 
 
@@ -97,12 +75,29 @@ async def update_organization(
     _: User = Depends(get_current_superuser),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update a ward. Super_admin only."""
+    """Update a ward (name / slug / province_id). Super_admin only."""
     org = await db.get(Organization, org_id)
     if not org:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+
+    if body.slug is not None and body.slug != org.slug:
+        dup = (
+            await db.execute(
+                select(Organization).where(Organization.slug == body.slug, Organization.id != org_id)
+            )
+        ).scalar_one_or_none()
+        if dup:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Slug already taken")
+    if body.province_id is not None and not await db.get(Province, body.province_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Province not found")
+
     if body.name is not None:
         org.name = body.name
+    if body.slug is not None:
+        org.slug = body.slug
+    if body.province_id is not None:
+        org.province_id = body.province_id
+
     await db.flush()
     await db.refresh(org)
     return org
@@ -160,24 +155,3 @@ async def add_member(
     await db.flush()
     await db.refresh(member)
     return member
-
-
-@router.delete("/{org_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_member(
-    org_id: UUID,
-    user_id: UUID,
-    _: User = Depends(get_current_superuser),
-    db: AsyncSession = Depends(get_db),
-):
-    """Remove ward staff. Super_admin only."""
-    target = (
-        await db.execute(
-            select(OrganizationMember).where(
-                OrganizationMember.org_id == org_id,
-                OrganizationMember.user_id == user_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if not target:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
-    await db.delete(target)

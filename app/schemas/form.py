@@ -1,47 +1,104 @@
 from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, Literal
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 from app.models.form import FormStatus
 
 
-# ── Templates ────────────────────────────────────────────────────────────────
+# Form types & templates
+
+class FormTypeResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id:         UUID
+    type_name:  str
+    created_at: datetime
+
 
 class FormTemplateResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id:               UUID
-    form_id:          str
-    name:             str
-    version:          str
-    canonical_width:  int
-    canonical_height: int
-    is_active:        bool
-    created_by:       UUID | None
-    created_at:       datetime
-    updated_at:       datetime
+    id:           UUID
+    form_type_id: UUID
+    name:         str
+    version:      str
+    is_active:    bool
+    field_schema: Any | None
+    created_by:   UUID | None
+    created_at:   datetime
 
 
-# ── Forms ─────────────────────────────────────────────────────────────────────
+# Pydantic model for CT01
+class CoQuanThucHien(BaseModel):
+    province_id: UUID
+    org_id: UUID
+
+
+class ThuTucYeuCau(BaseModel):
+    form_type_id: UUID
+    type: str
+    case: str
+
+
+class NguoiDeNghiInfo(BaseModel):
+    name: str
+    birth_day: date
+    gender: Literal["male", "female"]
+    id_number: str = Field(min_length=9, max_length=12)
+    phone_number: str | None = None      # optional
+    email: str | None = None             # optional
+
+
+class ThongTinNguoiDeNghi(BaseModel):
+    type: Literal["themself", "declare"]
+    infor: NguoiDeNghiInfo
+
+
+class ThongTinDeNghi(BaseModel):
+    address: str
+    content: str
+    due_time: date
+
+
+class ThanhVienCungThayDoi(BaseModel):
+    no: int
+    name: str
+    day_of_birth: date
+    gender: Literal["male", "female"]
+    id_number: str
+    relation: str
+
+
+class ReceiveMethod(BaseModel):
+    notification_method: Literal["sms", "email"]
+
+
+class FormCreate(BaseModel):
+    co_quan_thuc_hien: CoQuanThucHien
+    thu_tuc_yeu_cau: ThuTucYeuCau
+    thong_tin_nguoi_de_nghi: ThongTinNguoiDeNghi
+    thong_tin_de_nghi: ThongTinDeNghi
+    thanh_vien_cung_thay_doi: list[ThanhVienCungThayDoi] = []   # rỗng nếu "themself"
+    recieve_method: ReceiveMethod
+    form_json: Any | None = None   # original submission content (for record-keeping, debugging, or future re-processing)
+
+
+
+
+
+# ── Forms ───────────────────────────────────────────────────────────────────────
 
 class FormResponse(BaseModel):
-    """Lightweight list item — no heavy field data."""
+    """Lightweight list item."""
     model_config = ConfigDict(from_attributes=True)
 
     id:                UUID
+    form_type_id:      UUID | None
     org_id:            UUID | None
-    created_by:        UUID | None
-    template_id:       UUID | None
-    form_id:           str
-    original_filename: str
-    file_size:         int
+    user_id:           UUID | None
     status:            FormStatus
-    alignment_method:  str | None
-    alignment_quality: str | None
-    confidence_score:  float | None
-    error_message:     str | None
-    processing_time_ms: int | None
+    original_filename: str | None
     reviewed_by:       UUID | None
     reviewed_at:       datetime | None
     created_at:        datetime
@@ -49,13 +106,12 @@ class FormResponse(BaseModel):
 
 
 class FormDetailResponse(FormResponse):
-    """Full detail — includes extracted + validated fields and review/result."""
-    extracted_fields: Any | None
-    validated_fields: Any | None
-    alignment_meta:   Any | None
-    review_note:      str | None
-    result_message:   str | None
-    result_file_path: str | None
+    """Full detail: origin (user submission) + latest extracted result + review/result."""
+    review_note:      str | None = None
+    result_message:   str | None = None
+    result_file_path: str | None = None
+    origin_content:   Any | None = None     # DetailForm.origin_content
+    extracted_content: Any | None = None    # latest ExtractedResult.content
 
 
 class FormList(BaseModel):
@@ -68,10 +124,20 @@ class FormList(BaseModel):
 class FormCreateResponse(BaseModel):
     form_id_db: UUID
     status:     FormStatus
-    message:    str
 
 
-# ── Review / result (cán bộ phường) ────────────────────────────────────────────
+class FormExtractResponse(BaseModel):
+    """Synchronous extraction result (no DB persistence)."""
+    form_type:          str
+    confidence_score:   float | None = None
+    alignment_method:   str | None = None
+    alignment_quality:  str | None = None
+    processing_time_ms: int | None = None
+    extracted_fields:   Any | None = None
+    alignment_meta:     Any | None = None
+
+
+# ── Review / result ─────────────────────────────────────────────────────────────
 
 class DecisionRequest(BaseModel):
     decision: Literal["approved", "rejected"]
@@ -92,3 +158,20 @@ class FormStatusHistoryItem(BaseModel):
     actor_user_id: UUID | None
     note:          str | None
     created_at:    datetime
+
+
+# ── Extracted-content edit + history ─────────────────────────────────────────────
+
+class ContentUpdateRequest(BaseModel):
+    new_content: dict[str, Any]
+
+
+class HistoryContentItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id:          UUID
+    new_content: Any | None
+    changed_by:  UUID | None
+    changed_at:  datetime
+
+

@@ -19,10 +19,14 @@ class Organization(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     slug = Column(String(100), unique=True, nullable=False, index=True)
+    org_type = Column(String(20), nullable=False, server_default="phuong")  # phuong | xa | dac_khu
+    province_id = Column(UUID(as_uuid=True), ForeignKey("provinces.id", ondelete="SET NULL"),
+                         nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     members = relationship("OrganizationMember", back_populates="organization", lazy="selectin")
+    province = relationship("Province", back_populates="organizations", lazy="noload")
 
 
 class OrganizationMember(Base):

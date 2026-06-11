@@ -1,0 +1,1387 @@
+{
+  "engine": "paddle_v12",
+  "overall": {
+    "n": 121,
+    "cer": {
+      "mean": 0.0551,
+      "std": 0.1508
+    },
+    "wer": {
+      "mean": 0.1955,
+      "std": 0.3418
+    },
+    "em": 0.6364
+  },
+  "by_bucket": {
+    "hand": {
+      "n": 66,
+      "cer": {
+        "mean": 0.0609,
+        "std": 0.1118
+      },
+      "wer": {
+        "mean": 0.2633,
+        "std": 0.3817
+      },
+      "em": 0.5606
+    },
+    "print": {
+      "n": 55,
+      "cer": {
+        "mean": 0.0482,
+        "std": 0.1882
+      },
+      "wer": {
+        "mean": 0.1142,
+        "std": 0.268
+      },
+      "em": 0.7273
+    }
+  },
+  "by_field": {
+    "noi_dung_de_nghi": {
+      "n": 11,
+      "cer": {
+        "mean": 0.1468,
+        "std": 0.2024
+      },
+      "wer": {
+        "mean": 0.2875,
+        "std": 0.2698
+      },
+      "em": 0.0
+    },
+    "kinh_gui": {
+      "n": 11,
+      "cer": {
+        "mean": 0.0229,
+        "std": 0.0269
+      },
+      "wer": {
+        "mean": 0.1132,
+        "std": 0.1428
+      },
+      "em": 0.4545
+    },
+    "ho_chu_dem_va_ten": {
+      "n": 11,
+      "cer": {
+        "mean": 0.0655,
+        "std": 0.0506
+      },
+      "wer": {
+        "mean": 0.2727,
+        "std": 0.2111
+      },
+      "em": 0.2727
+    },
+    "email": {
+      "n": 11,
+      "cer": {
+        "mean": 0.0226,
+        "std": 0.0451
+      },
+      "wer": {
+        "mean": 0.2727,
+        "std": 0.4671
+      },
+      "em": 0.7273
+    },
+    "ho_chu_dem_va_ten_chu_ho": {
+      "n": 11,
+      "cer": {
+        "mean": 0.0258,
+        "std": 0.0362
+      },
+      "wer": {
+        "mean": 0.1136,
+        "std": 0.1593
+      },
+      "em": 0.6364
+    },
+    "moi_quan_he_voi_chu_ho": {
+      "n": 11,
+      "cer": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "wer": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "em": 1.0
+    },
+    "so_dinh_dan_ca_nhan_cua_chu_ho": {
+      "n": 11,
+      "cer": {
+        "mean": 0.0606,
+        "std": 0.0841
+      },
+      "wer": {
+        "mean": 0.4545,
+        "std": 0.5222
+      },
+      "em": 0.5455
+    },
+    "so_dinh_dan_ca_nhan": {
+      "n": 11,
+      "cer": {
+        "mean": 0.0076,
+        "std": 0.0251
+      },
+      "wer": {
+        "mean": 0.0909,
+        "std": 0.3015
+      },
+      "em": 0.9091
+    },
+    "so_dien_thoai_lien_he": {
+      "n": 11,
+      "cer": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "wer": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "em": 1.0
+    },
+    "ngay_thang_nam_sinh": {
+      "n": 11,
+      "cer": {
+        "mean": 0.0727,
+        "std": 0.1191
+      },
+      "wer": {
+        "mean": 0.3636,
+        "std": 0.5045
+      },
+      "em": 0.6364
+    },
+    "gioi_tinh": {
+      "n": 11,
+      "cer": {
+        "mean": 0.1818,
+        "std": 0.4045
+      },
+      "wer": {
+        "mean": 0.1818,
+        "std": 0.4045
+      },
+      "em": 0.8182
+    }
+  },
+  "samples": [
+    {
+      "form": "hand_scan_tt53_001",
+      "bucket": "hand",
+      "field": "kinh_gui",
+      "gt": "Công an Phường Bền Thành",
+      "pred": "Công an Phường Bền Thành",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_001",
+      "bucket": "hand",
+      "field": "ho_chu_dem_va_ten",
+      "gt": "Đặng Tuệ Mẫn",
+      "pred": "Đặng Tuệ Măn",
+      "cer": 0.08333333333333333,
+      "wer": 0.3333333333333333,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_001",
+      "bucket": "hand",
+      "field": "ngay_thang_nam_sinh",
+      "gt": "15/03/1998",
+      "pred": "15/0311998",
+      "cer": 0.1,
+      "wer": 1.0,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_001",
+      "bucket": "hand",
+      "field": "gioi_tinh",
+      "gt": "Nữ",
+      "pred": "Nữ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_001",
+      "bucket": "hand",
+      "field": "so_dinh_dan_ca_nhan",
+      "gt": "000803131132",
+      "pred": "000803131132",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_001",
+      "bucket": "hand",
+      "field": "so_dien_thoai_lien_he",
+      "gt": "0000998972",
+      "pred": "0000998972",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_001",
+      "bucket": "hand",
+      "field": "email",
+      "gt": "tueman98@gmail.com",
+      "pred": "tueman98@gmail.com",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_001",
+      "bucket": "hand",
+      "field": "ho_chu_dem_va_ten_chu_ho",
+      "gt": "Đặng Tuệ Mẫn",
+      "pred": "Đặng Tuệ Mẫn",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_001",
+      "bucket": "hand",
+      "field": "moi_quan_he_voi_chu_ho",
+      "gt": "Chủ hộ",
+      "pred": "Chủ hộ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_001",
+      "bucket": "hand",
+      "field": "so_dinh_dan_ca_nhan_cua_chu_ho",
+      "gt": "000803131132",
+      "pred": "000803131132",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_001",
+      "bucket": "hand",
+      "field": "noi_dung_de_nghi",
+      "gt": "Đăng ký tạm trú 01 nhân khẩu tại số 152/7 Đường Lý Tự Trọng, Phường Bến Thành, Thành phố Hồ Chí Minh",
+      "pred": "10 Nội dung đềnghị2): Đăng kLý tạm đú 01nhân khấi tại Số L52/7 Đường Lý Từự Trạng, Phường Bến Thànhy. Thành phố. Hồ Chí Minh",
+      "cer": 0.3469387755102041,
+      "wer": 0.6363636363636364,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_002",
+      "bucket": "hand",
+      "field": "kinh_gui",
+      "gt": "Công an phường Tân Sơn Nhất, Thành phố Hồ Chí Minh",
+      "pred": "Công an phường Tân Sơn Nhất Thành phố Hà Chí Minh",
+      "cer": 0.02040816326530612,
+      "wer": 0.09090909090909091,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_002",
+      "bucket": "hand",
+      "field": "ho_chu_dem_va_ten",
+      "gt": "Ngô Phương Anh",
+      "pred": "Nô Phường Anh",
+      "cer": 0.14285714285714285,
+      "wer": 0.6666666666666666,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_002",
+      "bucket": "hand",
+      "field": "ngay_thang_nam_sinh",
+      "gt": "08/09/1999",
+      "pred": "08/09/1909",
+      "cer": 0.1,
+      "wer": 1.0,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_002",
+      "bucket": "hand",
+      "field": "gioi_tinh",
+      "gt": "Nữ",
+      "pred": "Nữ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_002",
+      "bucket": "hand",
+      "field": "so_dinh_dan_ca_nhan",
+      "gt": "000799364150",
+      "pred": "000799364150",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_002",
+      "bucket": "hand",
+      "field": "so_dien_thoai_lien_he",
+      "gt": "0009625047",
+      "pred": "0009625047",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_002",
+      "bucket": "hand",
+      "field": "email",
+      "gt": "phuonganh99@gmail.com",
+      "pred": "phuonganh99@gmail.com",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_002",
+      "bucket": "hand",
+      "field": "ho_chu_dem_va_ten_chu_ho",
+      "gt": "Ngô Phương Anh",
+      "pred": "Ngô Phường Anh",
+      "cer": 0.07142857142857142,
+      "wer": 0.3333333333333333,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_002",
+      "bucket": "hand",
+      "field": "moi_quan_he_voi_chu_ho",
+      "gt": "Chủ hộ",
+      "pred": "Chủ hộ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_002",
+      "bucket": "hand",
+      "field": "so_dinh_dan_ca_nhan_cua_chu_ho",
+      "gt": "000799364150",
+      "pred": "000799367150",
+      "cer": 0.08333333333333333,
+      "wer": 1.0,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_002",
+      "bucket": "hand",
+      "field": "noi_dung_de_nghi",
+      "gt": "Đăng ký tạm trú 01 nhân khẩu tại số 184 Đường Hoàng Văn Thụ, Phường Tân Sơn Hòa, Thành phố Hồ Chí Minh",
+      "pred": "Đăng Ký tạo Thú 01 nhân Khấu tại Số 1841 Đường Hoàng Văn thu Phường Tân Sơn Hòa, Thành phố Hồ Chí Minh",
+      "cer": 0.05,
+      "wer": 0.21739130434782608,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_003",
+      "bucket": "hand",
+      "field": "kinh_gui",
+      "gt": "Công an Phường Bình Thạnh",
+      "pred": "Công an Phường Bình Thanh",
+      "cer": 0.04,
+      "wer": 0.2,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_003",
+      "bucket": "hand",
+      "field": "ho_chu_dem_va_ten",
+      "gt": "Lâm Chí Cường",
+      "pred": "Lâmn Chí Cường",
+      "cer": 0.07692307692307693,
+      "wer": 0.3333333333333333,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_003",
+      "bucket": "hand",
+      "field": "ngay_thang_nam_sinh",
+      "gt": "19/01/1993",
+      "pred": "01/1993",
+      "cer": 0.3,
+      "wer": 1.0,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_003",
+      "bucket": "hand",
+      "field": "gioi_tinh",
+      "gt": "Nam",
+      "pred": "Nam",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_003",
+      "bucket": "hand",
+      "field": "so_dinh_dan_ca_nhan",
+      "gt": "000193708462",
+      "pred": "000193708462",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_003",
+      "bucket": "hand",
+      "field": "so_dien_thoai_lien_he",
+      "gt": "0001509378",
+      "pred": "0001509378",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_003",
+      "bucket": "hand",
+      "field": "email",
+      "gt": "chicuong@gmail.com",
+      "pred": "chiauong@gmail.com",
+      "cer": 0.05555555555555555,
+      "wer": 1.0,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_003",
+      "bucket": "hand",
+      "field": "ho_chu_dem_va_ten_chu_ho",
+      "gt": "Lâm Chí Cường",
+      "pred": "Lâm Chí Cường",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_003",
+      "bucket": "hand",
+      "field": "moi_quan_he_voi_chu_ho",
+      "gt": "Chủ hộ",
+      "pred": "Chủ hộ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_003",
+      "bucket": "hand",
+      "field": "so_dinh_dan_ca_nhan_cua_chu_ho",
+      "gt": "000193708462",
+      "pred": "000103708462",
+      "cer": 0.08333333333333333,
+      "wer": 1.0,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_003",
+      "bucket": "hand",
+      "field": "noi_dung_de_nghi",
+      "gt": "Đăng ký tạm trú 01 nhân khẩu tại số 53 Đường Xô Viết Nghệ Tĩnh, Phường Bình Thạnh, Thành phố Hồ Chí Minh",
+      "pred": "Đăng ký tạm trú 01 nhân khấi tại Số 53 Đường Xà Viết Nghê Tnh, Phường Bình Thạnh, Thành phố Hồ Chí Minh",
+      "cer": 0.049019607843137254,
+      "wer": 0.17391304347826086,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_004",
+      "bucket": "hand",
+      "field": "kinh_gui",
+      "gt": "CÔNG AN PHƯỜNG CẦU ÔNG LÃNH, THÀNH PHỐ HỒ CHÍ MINH",
+      "pred": "CÔNG AN PHƯỜNG CẦ ÔNG LẦNH THÀNH PHH HỒCHÍ MINH",
+      "cer": 0.08163265306122448,
+      "wer": 0.45454545454545453,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_004",
+      "bucket": "hand",
+      "field": "ho_chu_dem_va_ten",
+      "gt": "MAI THỊ NGỌC HÂN",
+      "pred": "MA THỊ NGỌC HÂN",
+      "cer": 0.0625,
+      "wer": 0.25,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_004",
+      "bucket": "hand",
+      "field": "ngay_thang_nam_sinh",
+      "gt": "05/10/2002",
+      "pred": "05/10/2002",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_004",
+      "bucket": "hand",
+      "field": "gioi_tinh",
+      "gt": "Nữ",
+      "pred": "Nữ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_004",
+      "bucket": "hand",
+      "field": "so_dinh_dan_ca_nhan",
+      "gt": "000302559841",
+      "pred": "000302559841",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_004",
+      "bucket": "hand",
+      "field": "so_dien_thoai_lien_he",
+      "gt": "0008147625",
+      "pred": "0008147625",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_004",
+      "bucket": "hand",
+      "field": "email",
+      "gt": "ngochan02@gmail.com",
+      "pred": "ngochan02@gmail.com",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_004",
+      "bucket": "hand",
+      "field": "ho_chu_dem_va_ten_chu_ho",
+      "gt": "Mai Thị Ngọc Hân",
+      "pred": "Mai Thi Ngọc Hân",
+      "cer": 0.0625,
+      "wer": 0.25,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_004",
+      "bucket": "hand",
+      "field": "moi_quan_he_voi_chu_ho",
+      "gt": "Chủ hộ",
+      "pred": "Chủ hộ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_004",
+      "bucket": "hand",
+      "field": "so_dinh_dan_ca_nhan_cua_chu_ho",
+      "gt": "000302559841",
+      "pred": "000302559841",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_004",
+      "bucket": "hand",
+      "field": "noi_dung_de_nghi",
+      "gt": "Đăng ký tạm trú 01 nhân khẩu tại số 246 Đường An Dương Vương, Phường An Khánh, Thành phố Hồ Chí Minh",
+      "pred": "Đăng ký tạm tú 01 nhân khấu tại số 246 Đường An Dương Vương, Phường An Khánh, Thành phố Hồ Chí Minh",
+      "cer": 0.02040816326530612,
+      "wer": 0.09090909090909091,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_005",
+      "bucket": "hand",
+      "field": "kinh_gui",
+      "gt": "Công an Phường Bảy Hiền",
+      "pred": "Công an phường Bảy Hiên",
+      "cer": 0.043478260869565216,
+      "wer": 0.2,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_005",
+      "bucket": "hand",
+      "field": "ho_chu_dem_va_ten",
+      "gt": "Tôn Nữ Diễm Lệ",
+      "pred": "Tôn Nữ Điễm Lê",
+      "cer": 0.14285714285714285,
+      "wer": 0.5,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_005",
+      "bucket": "hand",
+      "field": "ngay_thang_nam_sinh",
+      "gt": "01/02/1999",
+      "pred": "01/02/1999",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_005",
+      "bucket": "hand",
+      "field": "gioi_tinh",
+      "gt": "Nữ",
+      "pred": "Nữ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_005",
+      "bucket": "hand",
+      "field": "so_dinh_dan_ca_nhan",
+      "gt": "000706610776",
+      "pred": "000706610776",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_005",
+      "bucket": "hand",
+      "field": "so_dien_thoai_lien_he",
+      "gt": "0000879025",
+      "pred": "0000879025",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_005",
+      "bucket": "hand",
+      "field": "email",
+      "gt": "diemle99@gmail.com",
+      "pred": "diemle99@gmail.com",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_005",
+      "bucket": "hand",
+      "field": "ho_chu_dem_va_ten_chu_ho",
+      "gt": "Tôn Nữ Diễm Lệ",
+      "pred": "Tôn Nữ Diễm Lệ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_005",
+      "bucket": "hand",
+      "field": "moi_quan_he_voi_chu_ho",
+      "gt": "Chủ hộ",
+      "pred": "Chủ hộ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_005",
+      "bucket": "hand",
+      "field": "so_dinh_dan_ca_nhan_cua_chu_ho",
+      "gt": "000706610776",
+      "pred": "0007006/0776",
+      "cer": 0.16666666666666666,
+      "wer": 1.0,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_005",
+      "bucket": "hand",
+      "field": "noi_dung_de_nghi",
+      "gt": "Đăng ký tạm trú 01 nhân khẩu tại số 90 đường Trường Chinh, Phường Bảy Hiền",
+      "pred": "Đăng 1hy tạm trú 01nhân khấu tại Số 90",
+      "cer": 0.547945205479452,
+      "wer": 0.625,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_006",
+      "bucket": "hand",
+      "field": "kinh_gui",
+      "gt": "Công an Phường Tân Định",
+      "pred": "Công an phường Tân Địinh",
+      "cer": 0.043478260869565216,
+      "wer": 0.2,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_006",
+      "bucket": "hand",
+      "field": "ho_chu_dem_va_ten",
+      "gt": "Vương Khánh Linh",
+      "pred": "Vương Khánh Linh",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_006",
+      "bucket": "hand",
+      "field": "ngay_thang_nam_sinh",
+      "gt": "12/06/1996",
+      "pred": "06/1996",
+      "cer": 0.3,
+      "wer": 1.0,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_006",
+      "bucket": "hand",
+      "field": "gioi_tinh",
+      "gt": "Nữ",
+      "pred": "Nữ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_006",
+      "bucket": "hand",
+      "field": "so_dinh_dan_ca_nhan",
+      "gt": "000196245318",
+      "pred": "000106245318",
+      "cer": 0.08333333333333333,
+      "wer": 1.0,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_006",
+      "bucket": "hand",
+      "field": "so_dien_thoai_lien_he",
+      "gt": "0006713540",
+      "pred": "0006713540",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_006",
+      "bucket": "hand",
+      "field": "email",
+      "gt": "khanhlinh96@gmail.com",
+      "pred": "khanhlinh96@gmailec",
+      "cer": 0.14285714285714285,
+      "wer": 1.0,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_006",
+      "bucket": "hand",
+      "field": "ho_chu_dem_va_ten_chu_ho",
+      "gt": "Vương Khánh Linh",
+      "pred": "Vương Khánh Linh",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_006",
+      "bucket": "hand",
+      "field": "moi_quan_he_voi_chu_ho",
+      "gt": "Chủ hộ",
+      "pred": "Chủ hộ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "hand_scan_tt53_006",
+      "bucket": "hand",
+      "field": "so_dinh_dan_ca_nhan_cua_chu_ho",
+      "gt": "000196245318",
+      "pred": "000196215778",
+      "cer": 0.25,
+      "wer": 1.0,
+      "em": false
+    },
+    {
+      "form": "hand_scan_tt53_006",
+      "bucket": "hand",
+      "field": "noi_dung_de_nghi",
+      "gt": "Đăng ký tạm trú 01 nhân khẩu tại số 78 Đường Hai Bà Trưng, Phường Tân Định",
+      "pred": "10 Nội dung đềnghị2) Đàng ký Tm Arúí O1nhân hhấu tai Sỗ78 đường Hai Bà Trương, Phương Tân Định",
+      "cer": 0.4657534246575342,
+      "wer": 0.8235294117647058,
+      "em": false
+    },
+    {
+      "form": "print_scan_tt53_001",
+      "bucket": "print",
+      "field": "kinh_gui",
+      "gt": "Công an Phường Gò Vấp, Thành phố Hồ Chí Minh",
+      "pred": "Công an Phường Gò Vấp, Thành phố Hồ Chí Minh",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_001",
+      "bucket": "print",
+      "field": "ho_chu_dem_va_ten",
+      "gt": "Huỳnh Mỹ Hạnh",
+      "pred": "Huỳnh Mỹ Hạnh",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_001",
+      "bucket": "print",
+      "field": "ngay_thang_nam_sinh",
+      "gt": "18/12/1997",
+      "pred": "18/12/1997",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_001",
+      "bucket": "print",
+      "field": "gioi_tinh",
+      "gt": "Nữ",
+      "pred": "",
+      "cer": 1.0,
+      "wer": 1.0,
+      "em": false
+    },
+    {
+      "form": "print_scan_tt53_001",
+      "bucket": "print",
+      "field": "so_dinh_dan_ca_nhan",
+      "gt": "000995701570",
+      "pred": "000995701570",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_001",
+      "bucket": "print",
+      "field": "so_dien_thoai_lien_he",
+      "gt": "0004438402",
+      "pred": "0004438402",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_001",
+      "bucket": "print",
+      "field": "email",
+      "gt": "myhanh97@gmail.com",
+      "pred": "myhanh97@gmail.com",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_001",
+      "bucket": "print",
+      "field": "ho_chu_dem_va_ten_chu_ho",
+      "gt": "Huỳnh Mỹ Hạnh",
+      "pred": "Huỳnh Mỹ Hạnh",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_001",
+      "bucket": "print",
+      "field": "moi_quan_he_voi_chu_ho",
+      "gt": "Chủ hộ",
+      "pred": "Chủ hộ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_001",
+      "bucket": "print",
+      "field": "so_dinh_dan_ca_nhan_cua_chu_ho",
+      "gt": "000991701570",
+      "pred": "000995701570",
+      "cer": 0.08333333333333333,
+      "wer": 1.0,
+      "em": false
+    },
+    {
+      "form": "print_scan_tt53_001",
+      "bucket": "print",
+      "field": "noi_dung_de_nghi",
+      "gt": "Đăng ký tạm trú 01 nhân khẩu tại số 67 Đường Quang Trung, Phường Gò Vấp, Thành phố Hồ Chí Minh",
+      "pred": "Đăng Ký tạm trú 01 nhân Khầu tại sSố 67 Đường Quang Trung Phường Gò Vấp, Thành phố Hồ Chí Minh",
+      "cer": 0.021739130434782608,
+      "wer": 0.09523809523809523,
+      "em": false
+    },
+    {
+      "form": "print_scan_tt53_002",
+      "bucket": "print",
+      "field": "kinh_gui",
+      "gt": "Công an Phường Hòa Hưng, Thành phố Hồ Chí Minh",
+      "pred": "Công an Phường Hòa Hưng, Thành phố Hồ Chí Minh",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_002",
+      "bucket": "print",
+      "field": "ho_chu_dem_va_ten",
+      "gt": "Phùng Bửu Trọng",
+      "pred": "Phùng Bứu Trọng",
+      "cer": 0.06666666666666667,
+      "wer": 0.3333333333333333,
+      "em": false
+    },
+    {
+      "form": "print_scan_tt53_002",
+      "bucket": "print",
+      "field": "ngay_thang_nam_sinh",
+      "gt": "30/08/2001",
+      "pred": "30/08/2001",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_002",
+      "bucket": "print",
+      "field": "gioi_tinh",
+      "gt": "Nam",
+      "pred": "Nam",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_002",
+      "bucket": "print",
+      "field": "so_dinh_dan_ca_nhan",
+      "gt": "000383378860",
+      "pred": "000383378860",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_002",
+      "bucket": "print",
+      "field": "so_dien_thoai_lien_he",
+      "gt": "0005145712",
+      "pred": "0005145712",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_002",
+      "bucket": "print",
+      "field": "email",
+      "gt": "buutrong01@gmail.com",
+      "pred": "buutrong0l@gmail.com",
+      "cer": 0.05,
+      "wer": 1.0,
+      "em": false
+    },
+    {
+      "form": "print_scan_tt53_002",
+      "bucket": "print",
+      "field": "ho_chu_dem_va_ten_chu_ho",
+      "gt": "Phùng Bửu Trọng",
+      "pred": "Phùng Bứu Trọng",
+      "cer": 0.06666666666666667,
+      "wer": 0.3333333333333333,
+      "em": false
+    },
+    {
+      "form": "print_scan_tt53_002",
+      "bucket": "print",
+      "field": "moi_quan_he_voi_chu_ho",
+      "gt": "Chủ hộ",
+      "pred": "Chủ hộ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_002",
+      "bucket": "print",
+      "field": "so_dinh_dan_ca_nhan_cua_chu_ho",
+      "gt": "000383378860",
+      "pred": "000383378860",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_002",
+      "bucket": "print",
+      "field": "noi_dung_de_nghi",
+      "gt": "Đăng ký tạm trú 01 nhân khẩu tại số 312 Đường Tô Hiến Thành, Phường Hòa Hưng, Thành phố Hồ Chí Minh",
+      "pred": "Đăng Ký tạm trú 01 nhân Khâu tại Số 312 Đường Tô Hiến Thành Phường Hòa Hưng, Thành phố Hồ Chí Minh.",
+      "cer": 0.020618556701030927,
+      "wer": 0.09090909090909091,
+      "em": false
+    },
+    {
+      "form": "print_scan_tt53_003",
+      "bucket": "print",
+      "field": "kinh_gui",
+      "gt": "Công an Phường Phú Nhuận, Thành phố Hồ Chí Minh",
+      "pred": "Công an Phường Phú Nhuận, Thành phố Hồ Chí Minh",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_003",
+      "bucket": "print",
+      "field": "ho_chu_dem_va_ten",
+      "gt": "Đỗ Hữu Tự",
+      "pred": "Đỗ Hữu Tự",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_003",
+      "bucket": "print",
+      "field": "ngay_thang_nam_sinh",
+      "gt": "09/11/1995",
+      "pred": "09/11/1995",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_003",
+      "bucket": "print",
+      "field": "gioi_tinh",
+      "gt": "Nam",
+      "pred": "Nam",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_003",
+      "bucket": "print",
+      "field": "so_dinh_dan_ca_nhan",
+      "gt": "000645084906",
+      "pred": "000645084906",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_003",
+      "bucket": "print",
+      "field": "so_dien_thoai_lien_he",
+      "gt": "0007274883",
+      "pred": "0007274883",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_003",
+      "bucket": "print",
+      "field": "email",
+      "gt": "huutu95@gmail.com",
+      "pred": "huutu95@gmail.com",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_003",
+      "bucket": "print",
+      "field": "ho_chu_dem_va_ten_chu_ho",
+      "gt": "Đỗ Hữu Tự",
+      "pred": "Đỗ Hữu Tự",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_003",
+      "bucket": "print",
+      "field": "moi_quan_he_voi_chu_ho",
+      "gt": "Chủ hộ",
+      "pred": "Chủ hộ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_003",
+      "bucket": "print",
+      "field": "so_dinh_dan_ca_nhan_cua_chu_ho",
+      "gt": "000645084906",
+      "pred": "000645084906",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_003",
+      "bucket": "print",
+      "field": "noi_dung_de_nghi",
+      "gt": "Đăng ký tạm trú 01 nhân khẩu tại số 215 Đường Phan Xích Long, Phường Phú Nhuận, Thành phố Hồ Chí Minh",
+      "pred": "Đăng Ký tạm trú 01 nhân Khầu tại sSố 215 Đường Phan Xích Long Phường Phú Nhuận, Thành phố Hồ Chí Minh",
+      "cer": 0.020202020202020204,
+      "wer": 0.09090909090909091,
+      "em": false
+    },
+    {
+      "form": "print_scan_tt53_004",
+      "bucket": "print",
+      "field": "kinh_gui",
+      "gt": "Công an Phường Chợ Lớn, Thành phố Hồ Chí Minh",
+      "pred": "Công an Phường Chọ Lớn, Thành phố Hồ Chí Minh",
+      "cer": 0.022727272727272728,
+      "wer": 0.1,
+      "em": false
+    },
+    {
+      "form": "print_scan_tt53_004",
+      "bucket": "print",
+      "field": "ho_chu_dem_va_ten",
+      "gt": "Lữ Thị Quỳnh Như",
+      "pred": "Lữ Thị Quỳnh Nhủ",
+      "cer": 0.0625,
+      "wer": 0.25,
+      "em": false
+    },
+    {
+      "form": "print_scan_tt53_004",
+      "bucket": "print",
+      "field": "ngay_thang_nam_sinh",
+      "gt": "22/07/2000",
+      "pred": "22/07/2000",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_004",
+      "bucket": "print",
+      "field": "gioi_tinh",
+      "gt": "Nữ",
+      "pred": "Nữ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_004",
+      "bucket": "print",
+      "field": "so_dinh_dan_ca_nhan",
+      "gt": "000610138585",
+      "pred": "000610138585",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_004",
+      "bucket": "print",
+      "field": "so_dien_thoai_lien_he",
+      "gt": "0002095308",
+      "pred": "0002095308",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_004",
+      "bucket": "print",
+      "field": "email",
+      "gt": "quynhnhu2000@gmail.com",
+      "pred": "quynhnhu2000@gmail.com",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_004",
+      "bucket": "print",
+      "field": "ho_chu_dem_va_ten_chu_ho",
+      "gt": "Lữ Thị Quỳnh",
+      "pred": "Lữ Thị Quỳnh",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_004",
+      "bucket": "print",
+      "field": "moi_quan_he_voi_chu_ho",
+      "gt": "Chủ hộ",
+      "pred": "Chủ hộ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_004",
+      "bucket": "print",
+      "field": "so_dinh_dan_ca_nhan_cua_chu_ho",
+      "gt": "000610138585",
+      "pred": "000610138585",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_004",
+      "bucket": "print",
+      "field": "noi_dung_de_nghi",
+      "gt": "Đăng ký tạm trú 01 nhân khẩu tại số 48 Đường Châu Văn Liêm, Phường Chợ Lớn, Thành phố Hồ Chí Minh",
+      "pred": "Đăng Ký tạm trú 01 nhân Khầu tại sSố 48 Đường Châu Văn Liêm Phường Chọ Lớn, Thành phố Hồ Chí Minh",
+      "cer": 0.031578947368421054,
+      "wer": 0.13636363636363635,
+      "em": false
+    },
+    {
+      "form": "print_scan_tt53_005",
+      "bucket": "print",
+      "field": "kinh_gui",
+      "gt": "Công an Phường Bến Thành, Thành phố Hồ Chí Minh",
+      "pred": "Công an Phường Bến Thành Thành phố Hồ Chí Minh",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_005",
+      "bucket": "print",
+      "field": "ho_chu_dem_va_ten",
+      "gt": "Đặng Tuệ Mẫn",
+      "pred": "Đặng Tuệ Mân",
+      "cer": 0.08333333333333333,
+      "wer": 0.3333333333333333,
+      "em": false
+    },
+    {
+      "form": "print_scan_tt53_005",
+      "bucket": "print",
+      "field": "ngay_thang_nam_sinh",
+      "gt": "15/03/1998",
+      "pred": "15/03/1998",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_005",
+      "bucket": "print",
+      "field": "gioi_tinh",
+      "gt": "Nữ",
+      "pred": "",
+      "cer": 1.0,
+      "wer": 1.0,
+      "em": false
+    },
+    {
+      "form": "print_scan_tt53_005",
+      "bucket": "print",
+      "field": "so_dinh_dan_ca_nhan",
+      "gt": "000803131132",
+      "pred": "000803131132",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_005",
+      "bucket": "print",
+      "field": "so_dien_thoai_lien_he",
+      "gt": "0000998972",
+      "pred": "0000998972",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_005",
+      "bucket": "print",
+      "field": "email",
+      "gt": "tueman98@gmail.com",
+      "pred": "tueman98@gmail.com",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_005",
+      "bucket": "print",
+      "field": "ho_chu_dem_va_ten_chu_ho",
+      "gt": "Đặng Tuệ Mẫn",
+      "pred": "Đặng Tuệ Mân",
+      "cer": 0.08333333333333333,
+      "wer": 0.3333333333333333,
+      "em": false
+    },
+    {
+      "form": "print_scan_tt53_005",
+      "bucket": "print",
+      "field": "moi_quan_he_voi_chu_ho",
+      "gt": "Chủ hộ",
+      "pred": "Chủ hộ",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_005",
+      "bucket": "print",
+      "field": "so_dinh_dan_ca_nhan_cua_chu_ho",
+      "gt": "000803131132",
+      "pred": "000803131132",
+      "cer": 0.0,
+      "wer": 0.0,
+      "em": true
+    },
+    {
+      "form": "print_scan_tt53_005",
+      "bucket": "print",
+      "field": "noi_dung_de_nghi",
+      "gt": "Đăng ký tạm trú 01 nhân khẩu tại số 152/7 Đường Lý Tự Trọng, Phường Bến Thành, Thành phố Hồ Chí Minh",
+      "pred": "Đặng Ký tạm trú 01 nhân Khâu tại sSố 152/7 Đường Lý Tự Trọng Phường Bến Thành, Thành phóố Hồ Chí Minh",
+      "cer": 0.04081632653061224,
+      "wer": 0.18181818181818182,
+      "em": false
+    }
+  ]
+}

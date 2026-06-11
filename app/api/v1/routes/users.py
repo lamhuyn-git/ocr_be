@@ -2,10 +2,10 @@ from __future__ import annotations
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 
 from app.database import get_db
-from app.models.user import User
+from app.models.user import User, RefreshToken
 from app.schemas.user import UserResponse, UserUpdate, UserAdminUpdate
 from app.core.deps import get_current_user, get_current_superuser
 
@@ -82,3 +82,29 @@ async def delete_user(user_id: UUID, db: AsyncSession = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     await db.delete(user)
+
+
+@router.post("/{user_id}/revoke", response_model=UserResponse)
+async def revoke_user(
+    user_id: UUID,
+    current_user: User = Depends(get_current_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    """Vô hiệu hoá một user (super_admin only): khoá tài khoản (is_active=False) +
+    thu hồi toàn bộ refresh token → user bị đăng xuất và không thể truy cập/gia hạn."""
+    if user_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Cannot revoke your own account")
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    user.is_active = False
+    await db.execute(
+        update(RefreshToken)
+        .where(RefreshToken.user_id == user_id, RefreshToken.is_revoked == False)  # noqa: E712
+        .values(is_revoked=True)
+    )
+    await db.flush()
+    await db.refresh(user)
+    return user

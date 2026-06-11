@@ -7,8 +7,13 @@ alembic==1.14.0
 pydantic==2.10.3
 pydantic-settings==2.6.1
 python-dotenv==1.0.1
-paddleocr==2.9.1
-paddlepaddle==2.6.2
+paddleocr==3.6.0
+paddlepaddle==3.3.1
+paddlex==3.6.1
+# OCR pipeline runtime deps (pipeline is vendored in-tree at app/pipeline)
+opencv-contrib-python>=4.10
+jsonschema>=4.0.0
+rapidfuzz>=3.0.0
 pdf2image==1.17.0
 Pillow==11.0.0
 aiofiles==24.1.0

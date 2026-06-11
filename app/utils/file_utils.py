@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 import uuid
+from datetime import datetime
 import aiofiles
 from pathlib import Path
 from fastapi import UploadFile, HTTPException, status
@@ -22,10 +23,11 @@ def validate_file(file: UploadFile) -> None:
         )
 
 
-async def save_upload(file: UploadFile) -> tuple[str, str, int]:
-    """Save uploaded file to disk. Returns (stored_filename, file_path, file_size)."""
+async def save_upload(file: UploadFile, user_id: str | None = None) -> tuple[str, str, int]:
     ext = get_file_extension(file.filename or "file")
-    stored_filename = f"{uuid.uuid4()}.{ext}"
+    uid = user_id or "anon"
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    stored_filename = f"form_by_{uid}_at_{ts}.{ext}"
     file_path = os.path.join(settings.upload_dir, stored_filename)
 
     os.makedirs(settings.upload_dir, exist_ok=True)
