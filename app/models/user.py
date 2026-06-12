@@ -22,6 +22,7 @@ class User(Base):
 
     memberships = relationship("OrganizationMember", back_populates="user", lazy="selectin")
     refresh_tokens = relationship("RefreshToken", back_populates="user", lazy="noload")
+    citizen = relationship("Citizen", back_populates="user", uselist=False, lazy="noload")
 
 
 class RefreshToken(Base):

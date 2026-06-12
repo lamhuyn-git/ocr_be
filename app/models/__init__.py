@@ -6,3 +6,10 @@ from app.models.form import (  # noqa: F401
     FormType, FormTemplate, Form, DetailForm, ExtractedResult, HistoryContent,
     FormStatus, FormStatusHistory, REVIEW_PREDECESSORS,
 )
+from app.models.citizen import (  # noqa: F401
+    Citizen, CitizenRelation,
+    Gender, MaritalStatus, ResidenceStatus, LifeStatus, RelationType,
+)
+from app.models.residence import (  # noqa: F401
+    TemporaryResidence, TempResidenceStatus,
+)
