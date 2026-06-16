@@ -137,7 +137,6 @@ async def add_member(
     _: User = Depends(get_current_superuser),
     db: AsyncSession = Depends(get_db),
 ):
-    """Assign a user as ward staff (ward_officer). Super_admin only."""
     org = await db.get(Organization, org_id)
     if not org:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")

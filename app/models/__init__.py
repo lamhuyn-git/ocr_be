@@ -13,3 +13,4 @@ from app.models.citizen import (  # noqa: F401
 from app.models.residence import (  # noqa: F401
     TemporaryResidence, TempResidenceStatus,
 )
+from app.models.password_reset_otp import PasswordResetOTP  # noqa: F401

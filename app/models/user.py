@@ -13,7 +13,8 @@ class User(Base):
     # CCCD — định danh đăng nhập của người dùng nội bộ (tương tự VNeID).
     national_id = Column(String(20), unique=True, index=True, nullable=True)
     email = Column(String(255), unique=True, nullable=True, index=True)
-    hashed_password = Column(String(255), nullable=False)
+    hashed_password = Column(String(255), nullable=True)
+    google_sub = Column(String(255), unique=True, index=True, nullable=True)
     full_name = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     is_superuser = Column(Boolean, default=False, nullable=False)

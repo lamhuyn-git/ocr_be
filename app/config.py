@@ -4,8 +4,9 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://postgres:password@localhost:5432/ocr_db"
-    sync_database_url: str = "postgresql://postgres:password@localhost:5432/ocr_db"
+    database_url: str
+    sync_database_url: str
+    secret_key: str
     upload_dir: str = "uploads"
     max_file_size_mb: int = 20
     allowed_extensions: str = "jpg,jpeg,png,bmp,tiff,webp,pdf"
@@ -16,10 +17,39 @@ class Settings(BaseSettings):
     ocr_model_version: str = "paddle_v12"
 
     # Auth
-    secret_key: str = "change-me-in-production-use-a-long-random-string"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
+
+    # Google OAuth
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    frontend_url: str = ""
+
+    # Email (SMTP) — gửi OTP đặt lại mật khẩu cho cán bộ
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "no-reply@vextract.com"
+    smtp_use_tls: bool = True
+    email_sender_backend: str = "smtp"
+
+    # Branding cho email template
+    app_name: str = "VExtract"
+    brand_logo_url: str = ""
+    brand_color: str = "#133524"
+    support_email: str = ""
+
+    # Password reset OTP
+    otp_expire_minutes: int = 1
+    otp_max_verify_attempts: int = 5
+    otp_resend_cooldown_seconds: int = 1
+
+    ratelimit_enabled: bool = True  # đặt false ở dev để tắt limiter (không trả 429)
+    ratelimit_storage_uri: str = "memory://"
+    ratelimit_forgot_password: str = "5/hour"
+    ratelimit_reset_password: str = "10/hour"
 
     @property
     def allowed_ext_set(self) -> set[str]:

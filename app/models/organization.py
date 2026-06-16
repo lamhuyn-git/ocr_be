@@ -40,4 +40,5 @@ class OrganizationMember(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     organization = relationship("Organization", back_populates="members")
-    user = relationship("User", back_populates="memberships")
+    # selectin: nạp sẵn user để serialize MemberResponse.user (async không cho lazy-load đồng bộ).
+    user = relationship("User", back_populates="memberships", lazy="selectin")
