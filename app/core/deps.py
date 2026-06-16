@@ -118,7 +118,7 @@ async def assert_form_ward_access(form, current_user: User, db: AsyncSession) ->
     """Allow access to a form if: super_admin, the submitting citizen, or staff of the form's ward."""
     if current_user.is_superuser:
         return
-    if form.user_id == current_user.id:
+    if form.submit_by == current_user.id:
         return
     if form.org_id is not None:
         membership = await get_user_membership(form.org_id, current_user, db)

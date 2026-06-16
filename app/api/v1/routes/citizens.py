@@ -11,6 +11,7 @@ from app.models.citizen import Citizen
 from app.models.user import User
 from app.schemas.citizen import CitizenCreate, CitizenUpdate, CitizenResponse
 from app.core.deps import get_current_user, get_current_superuser
+from app.core.security import hash_password
 
 router = APIRouter(prefix="/citizens", tags=["Citizens"])
 
@@ -28,19 +29,41 @@ async def create_citizen(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail="Citizen với số định danh này đã tồn tại")
 
-    # Liên kết user (nếu có) phải tồn tại và chưa gắn citizen khác
-    if body.user_id is not None:
-        if not await db.get(User, body.user_id):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        linked = (
-            await db.execute(select(Citizen).where(Citizen.user_id == body.user_id))
+    # national_id (= số định danh) của User là duy nhất → chặn nếu đã có tài khoản
+    dup_user = (
+        await db.execute(select(User.id).where(User.national_id == body.so_dinh_danh))
+    ).scalar_one_or_none()
+    if dup_user:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail="Đã tồn tại tài khoản với số định danh này")
+    # email của User cũng duy nhất → chặn nếu trùng
+    if body.email:
+        dup_email = (
+            await db.execute(select(User.id).where(User.email == body.email))
         ).scalar_one_or_none()
-        if linked:
+        if dup_email:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                                detail="User đã gắn với một citizen khác")
+                                detail="Đã tồn tại tài khoản với email này")
 
+    # 1) Tạo citizen
     citizen = Citizen(**body.model_dump())
     db.add(citizen)
+    await db.flush()
+
+    # 2) Tạo User tương ứng (đăng nhập bằng national_id = số định danh,
+    #    mật khẩu mặc định = chính số định danh, người dân đổi sau)
+    user = User(
+        national_id=body.so_dinh_danh,
+        email=body.email,
+        full_name=body.ho_chu_dem_va_ten,
+        hashed_password=hash_password(body.so_dinh_danh),
+        is_active=True,
+    )
+    db.add(user)
+    await db.flush()
+
+    # 3) Liên kết citizen ↔ user
+    citizen.user_id = user.id
     await db.flush()
     await db.refresh(citizen)
     return citizen

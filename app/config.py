@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     # OCR pipeline (ocr-pipeline package) — chọn model fine-tune trong models/{version}/inference
     ocr_model_version: str = "paddle_v12"
 
+    # form_type_id của đơn "đăng ký tạm trú" → submit sẽ tạo thêm bảng con TamtruForm
+    tamtru_form_type_id: str = "96a50bdd-3b78-4f9e-9a12-4a1d86d34732"
+
     # Auth
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30

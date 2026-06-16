@@ -38,7 +38,7 @@ class CitizenBase(BaseModel):
 class CitizenCreate(CitizenBase):
     so_dinh_danh: str = Field(min_length=9, max_length=12, description="Số định danh cá nhân (vĩnh viễn)")
     ho_chu_dem_va_ten: str = Field(min_length=1, max_length=255)
-    user_id: UUID | None = None  # liên kết tài khoản User (optional)
+    # user_id không cần truyền: tạo citizen sẽ tự tạo User và liên kết.
 
 
 class CitizenUpdate(CitizenBase):
