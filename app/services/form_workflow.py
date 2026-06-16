@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from typing import Any
 from uuid import UUID
 
@@ -14,8 +15,16 @@ from app.models.form import (
     Form, FormType, FormTemplate, FormResult, FormStatus,
 )
 from app.services.form_service import run_form_pipeline
+from app.services import s3_service
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_remove(path: str) -> None:
+    try:
+        os.remove(path)
+    except OSError:
+        pass
 
 
 # ── Lookups ───────────────────────────────────────────────────────────────────────
@@ -77,10 +86,14 @@ async def process_form_bg(form_db_id: UUID, image_path: str, config_path: str) -
         await db.commit()
     logger.info("[BG-OCR] status → processing form=%s", form_db_id)
 
-    # Bước 2: chạy OCR + extraction (thread riêng, không block event loop)
+    # Bước 2: tải ảnh từ S3 về file tạm → chạy OCR + extraction (thread riêng, không block event loop)
     try:
         loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(None, run_form_pipeline, image_path, config_path)
+        local_image = await loop.run_in_executor(None, s3_service.download_to_temp, image_path)
+        try:
+            result = await loop.run_in_executor(None, run_form_pipeline, local_image, config_path)
+        finally:
+            await loop.run_in_executor(None, _safe_remove, local_image)
         logger.info("[BG-OCR] pipeline xong form=%s", form_db_id)
     except Exception as exc:
         logger.exception("[BG-OCR] pipeline FAILED form=%s", form_db_id)

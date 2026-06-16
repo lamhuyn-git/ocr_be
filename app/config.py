@@ -13,6 +13,18 @@ class Settings(BaseSettings):
     paddleocr_lang: str = "en"
     debug: bool = True
 
+    # AWS credentials + region — dùng chung cho mọi service AWS (S3, SES, SQS…).
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
+    aws_region: str = ""
+
+    # S3 / object storage (presigned upload). Để trống endpoint = dùng AWS thật;
+    s3_endpoint_url: str = ""
+    s3_bucket: str = ""
+    s3_public_url_base: str = ""  
+    s3_use_path_style: bool = False 
+    s3_presign_expire_seconds: int = 3600
+
     # OCR pipeline (ocr-pipeline package) — chọn model fine-tune trong models/{version}/inference
     ocr_model_version: str = "paddle_v12"
 
