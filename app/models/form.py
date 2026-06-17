@@ -2,7 +2,7 @@ from __future__ import annotations
 import uuid
 import enum
 from sqlalchemy import (
-    Column, String, Integer, DateTime, Boolean, Enum, Text, ForeignKey,
+    Column, String, Integer, DateTime, Date, Boolean, Enum, Text, ForeignKey,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
@@ -11,15 +11,18 @@ from app.database import Base
 
 
 class FormStatus(str, enum.Enum):
-    draft        = "draft"         # người dân lưu nháp, chưa nộp
-    submitted    = "submitted"     # người dân vừa nộp, chờ OCR
-    processing   = "processing"    # OCR đang chạy
-    extracted    = "extracted"     # OCR xong, chờ cán bộ duyệt
-    under_review = "under_review"  # cán bộ đang duyệt
-    approved     = "approved"      # cán bộ chấp thuận
-    rejected     = "rejected"      # cán bộ từ chối
-    returned     = "returned"      # đã trả kết quả cho người dân
-    failed       = "failed"        # OCR/xử lý lỗi
+    draft          = "draft"           # nháp, chưa nộp
+    submitted      = "submitted"       # Đã tiếp nhận — người dân vừa nộp xong
+    processing     = "processing"      # Đang trích xuất — OCR đang chạy, đối chiếu dữ liệu
+    extracted      = "extracted"       # Đã trích xuất — AI xong, chờ kiểm tra viên
+    under_review   = "under_review"    # Đang xem xét — kiểm tra viên đang xử lý (khóa hồ sơ)
+    reviewed       = "reviewed"        # Đã xem — xong bước kiểm tra, qua bước thêm lý do trả về
+    valid          = "valid"           # Hợp lệ — đã duyệt, lưu CSDL + thông báo người dân
+    invalid        = "invalid"         # Không hợp lệ — bị trả lại, dân cần chỉnh sửa nộp lại
+    returned       = "returned"        # Đã trả kết quả cho người dân (xác nhận cuối sau valid)
+    require_adjust = "require_adjust"  # Yêu cầu chỉnh sửa (xác nhận cuối sau invalid)
+    failed         = "failed"          # Lỗi — hồ sơ bị lỗi trích xuất
+    overdue        = "overdue"         # Quá hạn — quá 7 ngày chưa xử lý
 
 
 class FormType(Base):
@@ -63,6 +66,7 @@ class Form(Base):
 
     status     = Column(Enum(FormStatus), default=FormStatus.submitted, nullable=False, index=True)
     notification_on = Column(String(255), nullable=True)  # nơi nhận thông báo cuối cùng (email/sđt)
+    review_note     = Column(Text, nullable=True)         # lý do/ghi chú khi duyệt/trả về
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -85,8 +89,14 @@ class TamtruForm(Base):
                                 nullable=False, unique=True)
     case               = Column(String(100), nullable=True)
     type               = Column(String(100), nullable=True)
+    submit_type        = Column(String(100), nullable=True)  # hình thức nộp (themself/declare...)
     location_register  = Column(String(512), nullable=True)
     registered_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    registered_user_name   = Column(String(255), nullable=True)
+    registered_user_birth  = Column(Date, nullable=True)
+    registered_user_gender = Column(String(20), nullable=True)
+    registered_user_phone  = Column(String(20), nullable=True)
+    registered_user_mail   = Column(String(255), nullable=True)
     register_content   = Column(JSONB, nullable=True)
     created_at         = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

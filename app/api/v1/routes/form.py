@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.core.deps import (
-    get_current_user, get_user_ward_ids, get_current_staff, assert_form_ward_access,
+    get_current_user, get_current_superuser, get_user_ward_ids, get_current_staff,
+    assert_form_ward_access,
 )
 from app.database import get_db
 from app.models.form import (
@@ -22,7 +23,7 @@ from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.form import (
     FormCreateResponse, FormResponse, FormDetailResponse,
-    FormCreate, FormDraftCreate, FormDraftUpdate,
+    FormCreate, FormDraftCreate, FormDraftUpdate, FormTransitionRequest,
     FormResultConfirmRequest, FormResultResponse,
 )
 from app.services import form_workflow as wf
@@ -50,6 +51,9 @@ async def list_forms_by_type(
     page = max(page, 1)
     page_size = min(max(page_size, 1), 100)
 
+    # Lazy maintenance: đánh overdue hồ sơ quá hạn trước khi trả danh sách (chưa có cron).
+    await wf.mark_overdue_forms(db, settings.overdue_days)
+
     query = select(FormModel)
 
     # Scope theo quyền: superadmin xem mọi phường; staff chỉ xem phường mình là thành viên.
@@ -63,10 +67,11 @@ async def list_forms_by_type(
         query = query.where(FormModel.form_type_id == type_id)
     if organization_id is not None:
         query = query.where(FormModel.org_id == organization_id)
-    if status_filter is not None:
+    # Không list draft
+    query = query.where(FormModel.status != FormStatus.draft)
+
+    if status_filter is not None and status_filter != FormStatus.draft:
         query = query.where(FormModel.status == status_filter)
-    else:
-        query = query.where(FormModel.status != FormStatus.draft)  # mặc định ẩn nháp khỏi cán bộ
     if date_from is not None:
         query = query.where(FormModel.created_at >= date_from)
     if date_to is not None:
@@ -82,8 +87,14 @@ async def _upsert_tamtru(form_id: UUID, spec, db: AsyncSession) -> None:
     target = existing or TamtruForm(form_id=form_id)
     target.case = spec.case
     target.type = spec.type
+    target.submit_type = spec.submit_type
     target.location_register = spec.location_register
     target.registered_user_id = spec.registered_user_id
+    target.registered_user_name = spec.registered_user_name
+    target.registered_user_birth = spec.registered_user_birth
+    target.registered_user_gender = spec.registered_user_gender
+    target.registered_user_phone = spec.registered_user_phone
+    target.registered_user_mail = spec.registered_user_mail
     target.register_content = spec.register_content
     if existing is None:
         db.add(target)
@@ -204,3 +215,72 @@ async def update_draft(
 
     await db.flush()
     return await _build_form_detail(form, db)
+
+
+@router.post("/{form_id}/submit", response_model=FormCreateResponse, status_code=status.HTTP_202_ACCEPTED, summary="Submit a draft form")
+async def submit_draft(
+    form_id: UUID,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
+    form = await wf.get_form_or_404(form_id, db)
+    if form.status != FormStatus.draft:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Form is not a draft")
+
+    evidence_paths = [
+        e.path_url for e in
+        (await db.execute(select(Evidence).where(Evidence.form_id == form_id))).scalars().all()
+    ]
+    await _finalize_and_dispatch(form, evidence_paths, db, background_tasks)
+    await db.flush()
+    await db.refresh(form)
+    return FormCreateResponse(form_id_db=form.id, status=form.status)
+
+
+@router.post("/scan-overdue", summary="Mark forms overdue (>N ngày chưa xử lý)")
+async def scan_overdue(
+    _: User = Depends(get_current_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    count = await wf.mark_overdue_forms(db, settings.overdue_days)
+    return {"updated": count}
+
+
+@router.post("/{form_id}/transition", response_model=FormDetailResponse,
+             summary="Kiểm tra viên chuyển trạng thái hồ sơ")
+async def transition_form(
+    form_id: UUID,
+    body: FormTransitionRequest,
+    current_user: User = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    # khóa hàng → ngăn 2 cán bộ cùng xử lý 1 hồ sơ
+    form = await db.get(FormModel, form_id, with_for_update=True)
+    if not form:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
+    await assert_form_ward_access(form, current_user, db)
+
+    wf.assert_can_transition(form, body.to_status)
+    form.status = body.to_status
+    if body.note is not None:
+        form.review_note = body.note
+    await db.flush()
+    return await _build_form_detail(form, db)
+
+
+async def _build_form_detail(form: FormModel, db: AsyncSession) -> FormDetailResponse:
+    """Gộp form + tamtru + evidences + results thành FormDetailResponse."""
+    await db.refresh(form)
+    tamtru = (await db.execute(select(TamtruForm).where(TamtruForm.form_id == form.id))).scalar_one_or_none()
+    evidences = (
+        await db.execute(select(Evidence).where(Evidence.form_id == form.id).order_by(Evidence.created_at))
+    ).scalars().all()
+    results = (
+        await db.execute(select(FormResult).where(FormResult.form_id == form.id).order_by(FormResult.position))
+    ).scalars().all()
+
+    resp = FormDetailResponse.model_validate(form)
+    resp.tamtru = tamtru
+    resp.evidences = list(evidences)
+    resp.results = list(results)
+    return resp

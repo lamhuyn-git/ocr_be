@@ -4,12 +4,12 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.form import FormStatus
-from app.schemas.form.evidence import EvidenceCreate, EvidenceResponse
+from app.schemas.form.evidence import EvidenceInput, EvidenceResponse
 from app.schemas.form.form_result import FormResultResponse
-from app.schemas.form.tamtru_form import TamtruFormCreate, TamtruFormResponse
+from app.schemas.form.tamtru_form import TamtruFormInput, TamtruFormResponse
 
 
 class FormCreate(BaseModel):
@@ -17,8 +17,8 @@ class FormCreate(BaseModel):
     form_type_id: UUID
     submit_by: UUID
     notification_on: str | None = None   # nơi nhận thông báo cuối cùng (email/sđt)
-    evidences: list[EvidenceCreate]
-    form_spec: TamtruFormCreate
+    evidences: list[EvidenceInput]
+    form_spec: TamtruFormInput
 
 
 class FormDraftCreate(BaseModel):
@@ -26,16 +26,22 @@ class FormDraftCreate(BaseModel):
     form_type_id: UUID | None = None
     submit_by: UUID
     notification_on: str | None = None
-    evidences: list[EvidenceCreate] = []
-    form_spec: TamtruFormCreate | None = None
+    evidences: list[EvidenceInput] = []
+    form_spec: TamtruFormInput | None = None
 
 
 class FormDraftUpdate(BaseModel):
     org_id: UUID | None = None
     form_type_id: UUID | None = None
     notification_on: str | None = None
-    evidences: list[EvidenceCreate] | None = None
-    form_spec: TamtruFormCreate | None = None
+    evidences: list[EvidenceInput] | None = None
+    form_spec: TamtruFormInput | None = None
+
+
+class FormTransitionRequest(BaseModel):
+    """Kiểm tra viên chuyển trạng thái hồ sơ (under_review/reviewed/valid/invalid/returned/require_adjust)."""
+    to_status: FormStatus
+    note: str | None = Field(default=None, max_length=4000)
 
 
 class FormCreateResponse(BaseModel):
@@ -52,6 +58,7 @@ class FormResponse(BaseModel):
     submit_by:    UUID | None
     status:       FormStatus
     notification_on: str | None
+    review_note:  str | None
     created_at:   datetime
     updated_at:   datetime
 
