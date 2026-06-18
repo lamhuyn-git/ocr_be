@@ -11,6 +11,7 @@ from app.api.v1.routes.evidences import router as evidences_router
 from app.api.v1.routes.form_results import router as form_results_router
 from app.api.v1.routes.citizens import router as citizens_router
 from app.api.v1.routes.uploads import router as uploads_router
+from app.api.v1.routes.org_addresses import router as org_addresses_router
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth_router)
@@ -25,3 +26,4 @@ api_router.include_router(evidences_router)
 api_router.include_router(form_results_router)
 api_router.include_router(citizens_router)
 api_router.include_router(uploads_router)
+api_router.include_router(org_addresses_router)

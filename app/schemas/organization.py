@@ -40,6 +40,13 @@ class OrgResponse(BaseModel):
     updated_at: datetime
     members: list[MemberResponse] = []
 
+class OrgDetailResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    slug: str
+    org_type: str
 
 class WardListItem(BaseModel):
     """Lightweight ward entry — for the citizen ward picker (no member data)."""

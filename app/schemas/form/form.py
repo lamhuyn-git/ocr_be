@@ -7,10 +7,11 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.form import FormStatus
-from app.schemas.form.evidence import EvidenceInput, EvidenceResponse
-from app.schemas.form.form_result import FormResultResponse
-from app.schemas.form.tamtru_form import TamtruFormInput, TamtruFormResponse
-
+from app.schemas.form.evidence import EvidenceInput, FormEvidencesDetail
+from app.schemas.form.form_result import FormResultDetailResponse
+from app.schemas.form.tamtru_form import TamtruFormInput, TamtruFormDetailResponse
+from app.schemas.organization import OrgDetailResponse
+from app.schemas.form.form_type import FormTypeResponse
 
 class FormCreate(BaseModel):
     org_id: UUID
@@ -64,9 +65,17 @@ class FormResponse(BaseModel):
 
 
 class FormDetailResponse(FormResponse):
-    tamtru:    TamtruFormResponse | None = None
-    evidences: list[EvidenceResponse] = []
-    results:   list[FormResultResponse] = []
+    ogr_detailliated:  OrgDetailResponse | None
+    form_type_detail:  FormTypeResponse | None
+    submit_by:         UUID | None
+    notification_on:   str | None
+    review_note:       str | None
+    sumited_content:   TamtruFormDetailResponse | None
+    evidences:         FormEvidencesDetail = FormEvidencesDetail()
+    validated_results: list[FormResultDetailResponse] = []
+
+
+FormDetailResponse.model_rebuild()
 
 
 class FormList(BaseModel):

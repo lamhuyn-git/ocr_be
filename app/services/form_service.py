@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import tempfile
 import time
 import logging
 from pathlib import Path
@@ -54,30 +55,30 @@ def validate_template_yaml(yaml_bytes: bytes) -> dict:
 # Main pipeline ở background
 
 def run_form_pipeline(image_path: str, config_path: str) -> dict[str, Any]:
-    align_form, load_config, apply_quality_overrides, extract_fields = _imports()
+    align_form, load_config, _, extract_fields = _imports()
 
     start = time.time()
 
-    # Bước 1: đọc ảnh
-    logger.info("[PIPELINE] 1/4 đọc ảnh: %s", image_path)
+    # Đọc ảnh
+    logger.info("[PIPELINE] 1/4 Reading image: %s", image_path)
     img = cv2.imread(image_path)
     if img is None:
         raise ValueError(f"Cannot read image at path: {image_path}")
 
-    # Bước 2: căn chỉnh (align) ảnh về khung chuẩn
-    logger.info("[PIPELINE] 2/4 align ảnh ...")
+    # Căn chỉnh (align) ảnh về khung chuẩn
+    logger.info("[PIPELINE] 2/4 Aligning image")
     warped, align_meta = align_form(img)
     quality = align_meta.get("quality", "good")  # chống lỗi khi align_meta lỡ không có key "quality"
     logger.info("[PIPELINE] align xong: method=%s quality=%s inliers=%s",
                 align_meta.get("method"), quality, align_meta.get("n_inliers"))
 
-    # Bước 3: nạp config template
-    logger.info("[PIPELINE] 3/4 load config: %s", config_path)
+    # Load config template
+    logger.info("[PIPELINE] 3/4 Loading config: %s", config_path)
     config = load_config(config_path)
     # config = apply_quality_overrides(config, quality)  # Chưa dùng đến, để dành cho sau khi có nhiều tier hơn và cần override config theo tier.
 
-    # Bước 4: trích xuất field (chuẩn hoá per-field đã chạy trong extract_fields theo config)
-    logger.info("[PIPELINE] 4/4 extract fields ...")
+    # Trích xuất field (chuẩn hoá per-field đã chạy trong extract_fields theo config)
+    logger.info("[PIPELINE] 4/4 Extracting fields")
     raw_fields = extract_fields(warped, config)
     logger.info("[PIPELINE] extract xong: %d field", len(raw_fields))
 
@@ -94,6 +95,16 @@ def run_form_pipeline(image_path: str, config_path: str) -> dict[str, Any]:
     elapsed_ms = int((time.time() - start) * 1000)
     logger.info("Form pipeline done in %dms, confidence=%.3f", elapsed_ms, avg_confidence)
 
+    # Lưu warped image ra file tạm để caller upload lên S3
+    warped_tmp_path: str | None = None
+    try:
+        fd, warped_tmp_path = tempfile.mkstemp(suffix=".jpg")
+        os.close(fd)
+        cv2.imwrite(warped_tmp_path, warped)
+    except Exception:
+        logger.warning("[PIPELINE] Không thể lưu warped image ra temp file")
+        warped_tmp_path = None
+
     return {
         "extracted_fields":   raw_fields,
         "confidence_score":   avg_confidence,
@@ -101,4 +112,5 @@ def run_form_pipeline(image_path: str, config_path: str) -> dict[str, Any]:
         "alignment_quality":  quality,
         "alignment_meta":     align_meta,
         "processing_time_ms": elapsed_ms,
+        "warped_tmp_path":    warped_tmp_path,
     }

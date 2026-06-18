@@ -115,7 +115,6 @@ def require_ward_role(*roles: OrgRole):
 
 
 async def assert_form_ward_access(form, current_user: User, db: AsyncSession) -> None:
-    """Allow access to a form if: super_admin, the submitting citizen, or staff of the form's ward."""
     if current_user.is_superuser:
         return
     if form.submit_by == current_user.id:

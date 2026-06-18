@@ -2,7 +2,7 @@ from __future__ import annotations
 import uuid
 import enum
 from sqlalchemy import (
-    Column, String, Integer, DateTime, Date, Boolean, Enum, Text, ForeignKey,
+    Column, String, DateTime, Date, Boolean, Enum, Text, ForeignKey,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
@@ -23,6 +23,12 @@ class FormStatus(str, enum.Enum):
     require_adjust = "require_adjust"  # Yêu cầu chỉnh sửa (xác nhận cuối sau invalid)
     failed         = "failed"          # Lỗi — hồ sơ bị lỗi trích xuất
     overdue        = "overdue"         # Quá hạn — quá 7 ngày chưa xử lý
+
+
+class FormResultStatus(str, enum.Enum):
+    valid       = "valid"        # field trích xuất tin cậy, không cần soát
+    need_review = "need_review"  # cần cán bộ soát lại (mặc định)
+    invalid     = "invalid"      # field sai/không hợp lệ
 
 
 class FormType(Base):
@@ -77,7 +83,7 @@ class Form(Base):
                              order_by="Evidence.created_at")
     results   = relationship("FormResult", back_populates="form",
                              cascade="all, delete-orphan", lazy="noload",
-                             order_by="FormResult.position")
+                             order_by="FormResult.label")
 
 
 class TamtruForm(Base):
@@ -91,13 +97,13 @@ class TamtruForm(Base):
     type               = Column(String(100), nullable=True)
     submit_type        = Column(String(100), nullable=True)  # hình thức nộp (themself/declare...)
     location_register  = Column(String(512), nullable=True)
-    registered_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    registered_user_cccd   = Column(String(12), nullable=True)   # CCCD người được khai báo thay đổi cư trú
     registered_user_name   = Column(String(255), nullable=True)
     registered_user_birth  = Column(Date, nullable=True)
     registered_user_gender = Column(String(20), nullable=True)
     registered_user_phone  = Column(String(20), nullable=True)
     registered_user_mail   = Column(String(255), nullable=True)
-    register_content   = Column(JSONB, nullable=True)
+    register_content       = Column(Text, nullable=True)
     created_at         = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     form = relationship("Form", back_populates="tamtru")
@@ -107,11 +113,12 @@ class Evidence(Base):
     """File đính kèm của 1 form (ảnh đơn, tài liệu...). Một form có thể có nhiều evidence."""
     __tablename__ = "evidences"
 
-    id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    form_id    = Column(UUID(as_uuid=True), ForeignKey("forms.id", ondelete="CASCADE"),
-                        nullable=False, index=True)
-    path_url   = Column(String(512), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    form_id     = Column(UUID(as_uuid=True), ForeignKey("forms.id", ondelete="CASCADE"),
+                         nullable=False, index=True)
+    path_url    = Column(String(512), nullable=False)
+    warped_img  = Column(String(512), nullable=True)   # S3 path của ảnh đã align/warp sau OCR
+    created_at  = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     form = relationship("Form", back_populates="evidences")
 
@@ -123,11 +130,14 @@ class FormResult(Base):
     id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     form_id         = Column(UUID(as_uuid=True), ForeignKey("forms.id", ondelete="CASCADE"),
                              nullable=False, index=True)
-    position        = Column(Integer, nullable=False, default=0)   # thứ tự field trên đơn
+    position        = Column(JSONB, nullable=True)                  # vị trí field trên document: [x, y, w, h] pixel
     label           = Column(String(255), nullable=False)          # tên field (vd "ho_ten")
     raw_value       = Column(Text, nullable=True)                  # giá trị OCR thô
-    suggested_value = Column(Text, nullable=True)                  # giá trị đã chuẩn hoá (gợi ý), có thể null
+    suggested_value = Column(Text, nullable=True)                  # giá trị CSDL gợi ý (khi REVIEW/ERROR), null nếu PASS
     final_value     = Column(Text, nullable=True)                  # giá trị cán bộ chốt, có thể null
+    note            = Column(Text, nullable=True)                  # lý do verdict (vd: "đọc rõ nhưng khác CSDL")
+    status          = Column(Enum(FormResultStatus), default=FormResultStatus.need_review,
+                             nullable=False, index=True)           # valid | need_review | invalid
     confirmed_by    = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at      = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

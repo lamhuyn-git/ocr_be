@@ -99,8 +99,8 @@ def generate_presigned_get(key: str) -> str:
         ) from exc
 
 
+#  get key từ path truyền vào
 def key_from_path_url(path_url: str) -> str:
-    """path_url có thể là full URL (public_url) hoặc key thuần → trả về object key."""
     if "://" not in path_url:
         return path_url.lstrip("/")
     path = urlparse(path_url).path.lstrip("/")
@@ -110,8 +110,21 @@ def key_from_path_url(path_url: str) -> str:
     return path
 
 
+def upload_file(local_path: str, key: str, content_type: str = "image/jpeg") -> str:
+    """Upload file từ disk lên S3 (server-side). Trả về public path_url."""
+    try:
+        _client().upload_file(
+            local_path, settings.s3_bucket, key,
+            ExtraArgs={"ContentType": content_type},
+        )
+    except (BotoCoreError, ClientError) as exc:
+        logger.exception("upload_file failed key=%s", key)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail="Upload S3 failed.") from exc
+    return public_url(key)
+
+
 def download_to_temp(path_url: str) -> str:
-    """Tải object S3 về file tạm, trả về đường dẫn local (caller tự xoá sau khi dùng)."""
     key = key_from_path_url(path_url)
     ext = os.path.splitext(key)[1] or ".img"
     fd, tmp_path = tempfile.mkstemp(suffix=ext)
@@ -119,9 +132,7 @@ def download_to_temp(path_url: str) -> str:
     try:
         _client().download_file(settings.s3_bucket, key, tmp_path)
     except (BotoCoreError, ClientError) as exc:
+        os.remove(tmp_path)
         logger.exception("download S3 failed key=%s", key)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Không tải được ảnh từ S3.",
-        ) from exc
+        raise HTTPException(502, detail="Download S3 failed.") from exc
     return tmp_path

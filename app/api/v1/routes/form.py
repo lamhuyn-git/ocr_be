@@ -16,6 +16,7 @@ from app.core.deps import (
     assert_form_ward_access,
 )
 from app.database import get_db
+from app.models import Citizen
 from app.models.form import (
     FormType, Form as FormModel, TamtruForm, Evidence, FormResult, FormStatus,
 )
@@ -26,7 +27,13 @@ from app.schemas.form import (
     FormCreate, FormDraftCreate, FormDraftUpdate, FormTransitionRequest,
     FormResultConfirmRequest, FormResultResponse,
 )
+from app.schemas.form.evidence import FormEvidencesDetail
+from app.schemas.form.form_result import FormResultDetailResponse
+from app.schemas.form.form_type import FormTypeResponse
+from app.schemas.form.tamtru_form import TamtruFormDetailResponse
+from app.schemas.organization import OrgDetailResponse
 from app.services import form_workflow as wf
+from app.services import s3_service
 from app.utils.file_utils import get_file_extension
 
 logger = logging.getLogger(__name__)
@@ -38,6 +45,7 @@ _ALLOWED_IMAGE_EXTS = {"jpg", "jpeg", "png", "bmp", "tiff", "webp"}
 
 @router.get("/list", response_model=list[FormResponse], summary="List submitted forms filtered by type and/or organization")
 async def list_forms_by_type(
+    background_tasks: BackgroundTasks,
     type_id: UUID | None = None,
     organization_id: UUID | None = None,
     status_filter: FormStatus | None = Query(default=None, alias="status"),
@@ -51,8 +59,8 @@ async def list_forms_by_type(
     page = max(page, 1)
     page_size = min(max(page_size, 1), 100)
 
-    # Lazy maintenance: đánh overdue hồ sơ quá hạn trước khi trả danh sách (chưa có cron).
     await wf.mark_overdue_forms(db, settings.overdue_days)
+    await wf.requeue_stale_processing(db, background_tasks, settings.stale_processing_minutes)
 
     query = select(FormModel)
 
@@ -89,7 +97,7 @@ async def _upsert_tamtru(form_id: UUID, spec, db: AsyncSession) -> None:
     target.type = spec.type
     target.submit_type = spec.submit_type
     target.location_register = spec.location_register
-    target.registered_user_id = spec.registered_user_id
+    target.registered_user_cccd = spec.registered_user_cccd
     target.registered_user_name = spec.registered_user_name
     target.registered_user_birth = spec.registered_user_birth
     target.registered_user_gender = spec.registered_user_gender
@@ -100,17 +108,14 @@ async def _upsert_tamtru(form_id: UUID, spec, db: AsyncSession) -> None:
         db.add(target)
 
 
-async def _finalize_and_dispatch(
-    form: FormModel, evidence_paths: list[str], db: AsyncSession, background_tasks: BackgroundTasks,
-) -> None:
+async def _finalize_and_dispatch(registered_user_id: UUID, form: FormModel, evidence_paths: list[str], db: AsyncSession, background_tasks: BackgroundTasks,) -> None:
     # Kiểm tra có ảnh
     if not evidence_paths:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="At least one evidence is required")
     # Lọc path ảnh CT01
     ct01_path = next((p for p in evidence_paths if "CT01" in p.upper()), None)
     if ct01_path is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="Missing CT01 image (evidence path must contain 'CT01')")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing CT01 image (evidence path must contain 'CT01')")
     # Kiểm tra đuôi ảnh hợp lệ
     for path_url in evidence_paths:
         ext = get_file_extension(path_url)
@@ -125,7 +130,7 @@ async def _finalize_and_dispatch(
     template = await wf.active_template_for_type_id(form.form_type_id, db)
 
     form.status = FormStatus.submitted
-    # Chạy ngầm workflow trích xuất → processing → form_result → extracted
+    # Chạy ngầm workflow trích xuất
     background_tasks.add_task(wf.process_form_bg, form.id, ct01_path, template.config_path)
 
 
@@ -155,132 +160,66 @@ async def submit_form(
         await _upsert_tamtru(form.id, formCreate.form_spec, db)
 
     # Validation đầy đủ + dispatch OCR (set status=submitted)
-    await _finalize_and_dispatch(form, [ev.path_url for ev in formCreate.evidences], db, background_tasks)
+    await _finalize_and_dispatch(formCreate.form_spec.registered_user_cccd, form, [ev.path_url for ev in formCreate.evidences], db, background_tasks)
     await db.flush()
     await db.refresh(form)
     return FormCreateResponse(form_id_db=form.id, status=form.status)
 
 
-@router.post("/draft", response_model=FormCreateResponse, status_code=status.HTTP_201_CREATED, summary="Save a form as draft")
-async def create_draft(
-    draft: FormDraftCreate,
-    db: AsyncSession = Depends(get_db),
-):
-    # Lưu nháp — không validate đầy đủ, không chạy OCR
-    form = FormModel(
-        form_type_id=draft.form_type_id,
-        org_id=draft.org_id,
-        submit_by=draft.submit_by,
-        notification_on=draft.notification_on,
-        status=FormStatus.draft,
-    )
-    db.add(form)
-    await db.flush()
+def _presign_path(path_url: str | None) -> str | None:
+    """Convert S3 private path → presigned GET URL có thể xem được."""
+    if not path_url:
+        return None
+    try:
+        key = s3_service.key_from_path_url(path_url)
+        return s3_service.generate_presigned_get(key)
+    except Exception:
+        return path_url  # fallback: trả path gốc nếu presign thất bại
 
-    if draft.evidences:
-        for path_url in (ev.path_url for ev in draft.evidences):
-            db.add(Evidence(form_id=form.id, path_url=path_url))
-
-    if draft.form_spec is not None:
-        await _upsert_tamtru(form.id, draft.form_spec, db)
-
-    await db.flush()
-    await db.refresh(form)
-    return FormCreateResponse(form_id_db=form.id, status=form.status)
-
-
-@router.patch("/draft/{form_id}", response_model=FormDetailResponse, summary="Update a draft form")
-async def update_draft(
-    form_id: UUID,
-    draft: FormDraftUpdate,
-    db: AsyncSession = Depends(get_db),
-):
-    form = await wf.get_form_or_404(form_id, db)
-    if form.status != FormStatus.draft:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Form is not a draft")
-
-    data = draft.model_dump(exclude_unset=True)
-    for field in ("org_id", "form_type_id", "notification_on"):
-        if field in data:
-            setattr(form, field, data[field])
-
-    # evidences gửi lên → replace toàn bộ
-    if draft.evidences is not None:
-        await db.execute(sa_delete(Evidence).where(Evidence.form_id == form_id))
-        for path_url in (ev.path_url for ev in draft.evidences):
-            db.add(Evidence(form_id=form_id, path_url=path_url))
-    # form_spec gửi lên → upsert tamtru
-    if draft.form_spec is not None:
-        await _upsert_tamtru(form_id, draft.form_spec, db)
-
-    await db.flush()
-    return await _build_form_detail(form, db)
-
-
-@router.post("/{form_id}/submit", response_model=FormCreateResponse, status_code=status.HTTP_202_ACCEPTED, summary="Submit a draft form")
-async def submit_draft(
-    form_id: UUID,
-    background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
-):
-    form = await wf.get_form_or_404(form_id, db)
-    if form.status != FormStatus.draft:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Form is not a draft")
-
-    evidence_paths = [
-        e.path_url for e in
-        (await db.execute(select(Evidence).where(Evidence.form_id == form_id))).scalars().all()
-    ]
-    await _finalize_and_dispatch(form, evidence_paths, db, background_tasks)
-    await db.flush()
-    await db.refresh(form)
-    return FormCreateResponse(form_id_db=form.id, status=form.status)
-
-
-@router.post("/scan-overdue", summary="Mark forms overdue (>N ngày chưa xử lý)")
-async def scan_overdue(
-    _: User = Depends(get_current_superuser),
-    db: AsyncSession = Depends(get_db),
-):
-    count = await wf.mark_overdue_forms(db, settings.overdue_days)
-    return {"updated": count}
-
-
-@router.post("/{form_id}/transition", response_model=FormDetailResponse,
-             summary="Kiểm tra viên chuyển trạng thái hồ sơ")
-async def transition_form(
-    form_id: UUID,
-    body: FormTransitionRequest,
-    current_user: User = Depends(get_current_staff),
-    db: AsyncSession = Depends(get_db),
-):
-    # khóa hàng → ngăn 2 cán bộ cùng xử lý 1 hồ sơ
-    form = await db.get(FormModel, form_id, with_for_update=True)
-    if not form:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
-    await assert_form_ward_access(form, current_user, db)
-
-    wf.assert_can_transition(form, body.to_status)
-    form.status = body.to_status
-    if body.note is not None:
-        form.review_note = body.note
-    await db.flush()
-    return await _build_form_detail(form, db)
 
 
 async def _build_form_detail(form: FormModel, db: AsyncSession) -> FormDetailResponse:
-    """Gộp form + tamtru + evidences + results thành FormDetailResponse."""
-    await db.refresh(form)
-    tamtru = (await db.execute(select(TamtruForm).where(TamtruForm.form_id == form.id))).scalar_one_or_none()
-    evidences = (
-        await db.execute(select(Evidence).where(Evidence.form_id == form.id).order_by(Evidence.created_at))
-    ).scalars().all()
-    results = (
-        await db.execute(select(FormResult).where(FormResult.form_id == form.id).order_by(FormResult.position))
-    ).scalars().all()
+    org       = await db.get(Organization, form.org_id) if form.org_id else None
+    form_type = await db.get(FormType, form.form_type_id) if form.form_type_id else None
+    tamtru    = (await db.execute(select(TamtruForm).where(TamtruForm.form_id == form.id))).scalar_one_or_none()
+    evidences = (await db.execute(select(Evidence).where(Evidence.form_id == form.id))).scalars().all()
+    results   = (await db.execute(select(FormResult).where(FormResult.form_id == form.id).order_by(FormResult.label))).scalars().all()
 
-    resp = FormDetailResponse.model_validate(form)
-    resp.tamtru = tamtru
-    resp.evidences = list(evidences)
-    resp.results = list(results)
-    return resp
+    # Build evidences group
+    ev_detail = FormEvidencesDetail()
+    for ev in evidences:
+        upper = (ev.path_url or "").upper()
+        if "CT01" in upper and ev.warped_img:
+            ev_detail.warped_img = _presign_path(ev.warped_img)
+        elif "RESIDENCE_PROOF" in upper:
+            ev_detail.residence_proof = _presign_path(ev.path_url)
+
+    return FormDetailResponse(
+        id=form.id,
+        form_type_id=form.form_type_id,
+        org_id=form.org_id,
+        submit_by=form.submit_by,
+        status=form.status,
+        notification_on=form.notification_on,
+        review_note=form.review_note,
+        created_at=form.created_at,
+        updated_at=form.updated_at,
+        ogr_detailliated=OrgDetailResponse.model_validate(org) if org else None,
+        form_type_detail=FormTypeResponse.model_validate(form_type) if form_type else None,
+        sumited_content=TamtruFormDetailResponse.model_validate(tamtru) if tamtru else None,
+        evidences=ev_detail,
+        validated_results=[FormResultDetailResponse.model_validate(r) for r in results],
+    )
+
+
+@router.get("/detail", response_model=FormDetailResponse, summary="Get detail form by its ID")
+async def get_detail_forms_by_id(
+    form_id: UUID,
+    current_user: User = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    form = await db.get(FormModel, form_id)
+    if not form:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
+    await assert_form_ward_access(form, current_user, db)
+    return await _build_form_detail(form, db)

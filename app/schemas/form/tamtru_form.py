@@ -1,6 +1,5 @@
 from __future__ import annotations
 from datetime import date, datetime
-from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -12,13 +11,13 @@ class TamtruFormInput(BaseModel):
     type:                   str | None = Field(default=None, max_length=100)
     submit_type:            str | None = Field(default=None, max_length=100)
     location_register:      str | None = Field(default=None, max_length=512)
-    registered_user_id:     UUID | None = None
+    registered_user_cccd:   str | None = Field(default=None, max_length=12)
     registered_user_name:   str | None = Field(default=None, max_length=255)
     registered_user_birth:  date | None = None
     registered_user_gender: str | None = Field(default=None, max_length=20)
     registered_user_phone:  str | None = Field(default=None, max_length=20)
     registered_user_mail:   str | None = Field(default=None, max_length=255)
-    register_content:       Any | None = None
+    register_content:       str | None = None
 
 
 class TamtruFormCreate(BaseModel):
@@ -27,13 +26,13 @@ class TamtruFormCreate(BaseModel):
     type:                   str | None = Field(default=None, max_length=100)
     submit_type:            str | None = Field(default=None, max_length=100)
     location_register:      str | None = Field(default=None, max_length=512)
-    registered_user_id:     UUID | None = None
+    registered_user_cccd:   str | None = Field(default=None, max_length=12)
     registered_user_name:   str | None = Field(default=None, max_length=255)
     registered_user_birth:  date | None = None
     registered_user_gender: str | None = Field(default=None, max_length=20)
     registered_user_phone:  str | None = Field(default=None, max_length=20)
     registered_user_mail:   str | None = Field(default=None, max_length=255)
-    register_content:       Any | None = None
+    register_content:       str | None = None
 
 
 class TamtruFormUpdate(BaseModel):
@@ -41,13 +40,13 @@ class TamtruFormUpdate(BaseModel):
     type:                   str | None = Field(default=None, max_length=100)
     submit_type:            str | None = Field(default=None, max_length=100)
     location_register:      str | None = Field(default=None, max_length=512)
-    registered_user_id:     UUID | None = None
+    registered_user_cccd:   str | None = Field(default=None, max_length=12)
     registered_user_name:   str | None = Field(default=None, max_length=255)
     registered_user_birth:  date | None = None
     registered_user_gender: str | None = Field(default=None, max_length=20)
     registered_user_phone:  str | None = Field(default=None, max_length=20)
     registered_user_mail:   str | None = Field(default=None, max_length=255)
-    register_content:       Any | None = None
+    register_content:       str | None = None
 
 
 class TamtruFormResponse(BaseModel):
@@ -59,11 +58,28 @@ class TamtruFormResponse(BaseModel):
     type:                   str | None
     submit_type:            str | None
     location_register:      str | None
-    registered_user_id:     UUID | None
+    registered_user_cccd:   str | None
     registered_user_name:   str | None
     registered_user_birth:  date | None
     registered_user_gender: str | None
     registered_user_phone:  str | None
     registered_user_mail:   str | None
-    register_content:       Any | None
+    register_content:       str | None
     created_at:             datetime
+
+
+class TamtruFormDetailResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id:                     UUID
+    case:                   str | None
+    type:                   str | None
+    submit_type:            str | None
+    location_register:      str | None
+    registered_user_cccd:   str | None
+    registered_user_name:   str | None
+    registered_user_birth:  date | None
+    registered_user_gender: str | None
+    registered_user_phone:  str | None
+    registered_user_mail:   str | None
+    register_content:       str | None

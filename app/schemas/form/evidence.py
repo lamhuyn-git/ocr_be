@@ -22,7 +22,14 @@ class EvidenceUpdate(BaseModel):
 class EvidenceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id:         UUID
-    form_id:    UUID
-    path_url:   str
-    created_at: datetime
+    id:          UUID
+    form_id:     UUID
+    path_url:    str
+    warped_img:  str | None
+    created_at:  datetime
+
+
+class FormEvidencesDetail(BaseModel):
+    """Nhóm các path ảnh đính kèm trả về trong detail form (đã presign)."""
+    warped_img:      str | None = None  # ảnh đã align từ CT01
+    residence_proof: str | None = None  # giấy tờ cư trú

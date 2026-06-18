@@ -8,8 +8,6 @@ from app.database import Base
 
 
 class OrgRole(str, enum.Enum):
-    # 3-tier model: a ward membership means "cán bộ phường". Single staff role for now;
-    # super_admin (users.is_superuser) manages wards + staff globally.
     ward_officer = "ward_officer"
 
 

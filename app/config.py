@@ -33,6 +33,8 @@ class Settings(BaseSettings):
 
     # Hồ sơ quá số ngày này mà chưa xử lý → đánh dấu overdue
     overdue_days: int = 7
+    # Hồ sơ kẹt ở 'processing' quá số phút này (OCR chết giữa chừng/restart) → tự kích hoạt lại trích xuất
+    stale_processing_minutes: int = 15
 
     # Auth
     algorithm: str = "HS256"

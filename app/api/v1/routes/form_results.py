@@ -39,7 +39,7 @@ async def list_form_results(
     query = select(FormResult)
     if form_id is not None:
         query = query.where(FormResult.form_id == form_id)
-    rows = (await db.execute(query.order_by(FormResult.position))).scalars().all()
+    rows = (await db.execute(query.order_by(FormResult.label))).scalars().all()
     return list(rows)
 
 
