@@ -22,13 +22,16 @@ class Verdict:
 def decide_match(ocr_value: str, db_value: str, conf=None, distance=None, soft=False) -> Verdict:
     if distance is None:
         distance = norm_distance(ocr_value, db_value)
+    # Soft fields (phone, email): không gợi ý giá trị CSDL vì có thể đã thay đổi hợp lệ.
+    # OCR trống: không gợi ý vì không có gì để đối chiếu.
+    hint = None if (soft or not ocr_value) else db_value
     if conf is not None and conf < OCR_CONF_MIN:
-        return Verdict(REVIEW, "Hệ thống không chắc về kết quả trích xuất", db_value, distance, db_value, ocr_value)
+        return Verdict(REVIEW, "Hệ thống không chắc về kết quả trích xuất", hint, distance, db_value, ocr_value)
     if distance == 0:
         return Verdict(PASS, "khớp với CSDL", None, 0.0, db_value, ocr_value)
     if distance <= NEAR_DIST_MAX:
-        return Verdict(REVIEW, "Có sự chênh lệch nhỏ so với CSDL", db_value, distance, db_value, ocr_value)
-    return Verdict(REVIEW if soft else ERROR, "đọc rõ nhưng khác CSDL", db_value, distance, db_value, ocr_value)
+        return Verdict(REVIEW, "Có sự chênh lệch nhỏ so với CSDL", hint, distance, db_value, ocr_value)
+    return Verdict(REVIEW if soft else ERROR, "đọc rõ nhưng khác CSDL", hint, distance, db_value, ocr_value)
 
 
 def not_found(ocr_value: str, what: str) -> Verdict:

@@ -2,7 +2,22 @@ from __future__ import annotations
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+def _parse_date(v) -> date | None:
+    """Accept ISO (YYYY-MM-DD) hoặc DD/MM/YYYY từ FE."""
+    if v is None or isinstance(v, date):
+        return v
+    s = str(v).strip()
+    if not s:
+        return None
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    raise ValueError(f"Ngày không hợp lệ: '{s}' (cần DD/MM/YYYY hoặc YYYY-MM-DD)")
 
 
 class TamtruFormInput(BaseModel):
@@ -19,6 +34,8 @@ class TamtruFormInput(BaseModel):
     registered_user_mail:   str | None = Field(default=None, max_length=255)
     register_content:       str | None = None
 
+    _parse_birth = field_validator("registered_user_birth", mode="before")(_parse_date)
+
 
 class TamtruFormCreate(BaseModel):
     form_id:                UUID
@@ -34,6 +51,8 @@ class TamtruFormCreate(BaseModel):
     registered_user_mail:   str | None = Field(default=None, max_length=255)
     register_content:       str | None = None
 
+    _parse_birth = field_validator("registered_user_birth", mode="before")(_parse_date)
+
 
 class TamtruFormUpdate(BaseModel):
     case:                   str | None = Field(default=None, max_length=100)
@@ -47,6 +66,8 @@ class TamtruFormUpdate(BaseModel):
     registered_user_phone:  str | None = Field(default=None, max_length=20)
     registered_user_mail:   str | None = Field(default=None, max_length=255)
     register_content:       str | None = None
+
+    _parse_birth = field_validator("registered_user_birth", mode="before")(_parse_date)
 
 
 class TamtruFormResponse(BaseModel):

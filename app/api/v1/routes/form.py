@@ -189,8 +189,9 @@ async def _build_form_detail(form: FormModel, db: AsyncSession) -> FormDetailRes
     ev_detail = FormEvidencesDetail()
     for ev in evidences:
         upper = (ev.path_url or "").upper()
-        if "CT01" in upper and ev.warped_img:
-            ev_detail.warped_img = _presign_path(ev.warped_img)
+        if "CT01" in upper:
+            # Ưu tiên warped_img (đã align); fallback về ảnh gốc nếu workflow chưa chạy xong
+            ev_detail.warped_img = _presign_path(ev.warped_img or ev.path_url)
         elif "RESIDENCE_PROOF" in upper:
             ev_detail.residence_proof = _presign_path(ev.path_url)
 
@@ -222,4 +223,35 @@ async def get_detail_forms_by_id(
     if not form:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
     await assert_form_ward_access(form, current_user, db)
+    if form.status == FormStatus.extracted:
+        form.status = FormStatus.under_review
+        await db.commit()
+        await db.refresh(form)
     return await _build_form_detail(form, db)
+
+
+@router.post("/reextract", response_model=FormCreateResponse, status_code=status.HTTP_202_ACCEPTED, summary="Kích hoạt lại trích xuất OCR cho một form")
+async def reextract_form(
+    background_tasks: BackgroundTasks,
+    form_id: UUID,
+    current_user: User = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    form = await db.get(FormModel, form_id)
+    if not form:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
+    await assert_form_ward_access(form, current_user, db)
+    if form.status not in wf.MANUAL_REEXTRACT_STATES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Không thể trích xuất lại khi form ở trạng thái '{form.status.value}'",
+        )
+    ok = await wf.dispatch_reextract(form, db, background_tasks)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Thiếu ảnh CT01 hoặc template chưa được cấu hình",
+        )
+    await db.commit()
+    await db.refresh(form)
+    return FormCreateResponse(form_id_db=form.id, status=form.status)

@@ -41,7 +41,7 @@ NOT_OVERDUE_STATES: set[FormStatus] = {FormStatus.draft, FormStatus.overdue}
 
 # Map mã vấn đề (cổng tiền-trích-xuất) → câu mô tả cho cán bộ.
 _ISSUE_NOTE = {
-    "registered_user_not_found": "Người đăng ký không có trong CSDL",
+    "registered_user_not_found": "Người/Hộ thay đổi cư trú không có trong CSDL",
     "registered_user_name":      "Họ tên người đăng ký không khớp CSDL",
     "registered_user_birth":     "Ngày sinh người đăng ký không khớp CSDL",
     "registered_user_gender":    "Giới tính người đăng ký không khớp CSDL",
@@ -320,6 +320,16 @@ async def mark_overdue_forms(db: AsyncSession, days: int) -> int:
 # Các trạng thái cho phép kích hoạt lại trích xuất (chưa có quyết định của cán bộ → an toàn ghi đè).
 RE_EXTRACTABLE_STATES: set[FormStatus] = {
     FormStatus.failed, FormStatus.overdue, FormStatus.processing,
+}
+
+# Trạng thái cho phép staff kích hoạt lại trích xuất thủ công.
+# Không bao gồm: draft/submitted/processing (đang chạy), valid/invalid/returned/require_adjust (đã có quyết định).
+MANUAL_REEXTRACT_STATES: set[FormStatus] = {
+    FormStatus.failed,
+    FormStatus.overdue,
+    FormStatus.extracted,
+    FormStatus.under_review,
+    FormStatus.reviewed,
 }
 
 

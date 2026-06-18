@@ -81,6 +81,10 @@ def run_form_pipeline(image_path: str, config_path: str) -> dict[str, Any]:
     logger.info("[PIPELINE] 4/4 Extracting fields")
     raw_fields = extract_fields(warped, config)
     logger.info("[PIPELINE] extract xong: %d field", len(raw_fields))
+    for _name, _f in raw_fields.items():
+        if isinstance(_f, dict):
+            logger.debug("[PIPELINE][RAW] %s: text_raw=%r text=%r conf=%.3f empty=%s",
+                         _name, _f.get("text_raw"), _f.get("text"), _f.get("confidence", 0), _f.get("empty"))
 
     # Average confidence over non-empty text fields
     confidences = [
