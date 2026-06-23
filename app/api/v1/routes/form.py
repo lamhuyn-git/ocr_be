@@ -18,14 +18,14 @@ from app.core.deps import (
 from app.database import get_db
 from app.models import Citizen
 from app.models.form import (
-    FormType, Form as FormModel, TamtruForm, Evidence, FormResult, FormStatus,
+    FormType, Form as FormModel, TamtruForm, Evidence, FormResult, FormStatus, ResultConfirm,
 )
 from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.form import (
     FormCreateResponse, FormResponse, FormDetailResponse,
-    FormCreate, FormDraftCreate, FormDraftUpdate, FormTransitionRequest,
-    FormResultConfirmRequest, FormResultResponse,
+    FormCreate,
+    AdminSaveChangeRequest,
 )
 from app.schemas.form.evidence import FormEvidencesDetail
 from app.schemas.form.form_result import FormResultDetailResponse
@@ -255,3 +255,33 @@ async def reextract_form(
     await db.commit()
     await db.refresh(form)
     return FormCreateResponse(form_id_db=form.id, status=form.status)
+
+
+@router.post("/admin/save_change", status_code=status.HTTP_200_OK, summary="Lưu draft duyệt hồ sơ (admin)")
+async def admin_save_change(
+    body: AdminSaveChangeRequest,
+    current_user: User = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    form = await db.get(FormModel, body.form_id)
+    if not form:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
+    await assert_form_ward_access(form, current_user, db)
+
+    if body.updated_fields != None:
+        for item in body.updated_fields:
+            result = await db.get(FormResult, item.id)
+            if not result or result.form_id != body.form_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"FormResult {item.id} not found in form {body.form_id}",
+                )
+            db.add(ResultConfirm(
+                checkpoint_id=item.id,
+                confirmed_by=body.confirmed_by,
+                final_status=item.status,
+            ))
+    form.status = FormStatus.reviewed
+
+    await db.commit()
+    return {"form_id": body.form_id, "status": form.status}

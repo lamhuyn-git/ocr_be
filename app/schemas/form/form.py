@@ -40,7 +40,7 @@ class FormDraftUpdate(BaseModel):
 
 
 class FormTransitionRequest(BaseModel):
-    """Kiểm tra viên chuyển trạng thái hồ sơ (under_review/reviewed/valid/invalid/returned/require_adjust)."""
+    """Kiểm tra viên chuyển trạng thái hồ sơ (under_review/reviewed/returned)."""
     to_status: FormStatus
     note: str | None = Field(default=None, max_length=4000)
 

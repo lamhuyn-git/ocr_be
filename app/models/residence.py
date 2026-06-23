@@ -10,9 +10,8 @@ from app.database import Base
 
 
 class TempResidenceStatus(str, enum.Enum):
-    active = "active"        # đang hiệu lực
-    expired = "expired"      # hết hạn
-    cancelled = "cancelled"  # đã huỷ (chuyển đi / thu hồi)
+    valid          = "valid"           # hồ sơ được duyệt hợp lệ → cấp tạm trú
+    require_adjust = "require_adjust"  # trả về yêu cầu người dân chỉnh sửa
 
 
 class TemporaryResidence(Base):
@@ -28,7 +27,7 @@ class TemporaryResidence(Base):
                     nullable=True, index=True)  # phường cấp/quản lý
     tu_ngay = Column(Date, nullable=True)
     den_ngay = Column(Date, nullable=True)
-    status = Column(Enum(TempResidenceStatus), nullable=False, server_default="active", index=True)
+    status = Column(Enum(TempResidenceStatus), nullable=False, server_default="valid", index=True)
     form_id = Column(UUID(as_uuid=True), ForeignKey("forms.id", ondelete="SET NULL"),
                      nullable=True, index=True)  # form nguồn đã duyệt (provenance)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

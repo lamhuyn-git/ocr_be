@@ -21,7 +21,8 @@ from app.models.org_address import OrgAddress
 from app.services.form_service import run_form_pipeline
 from app.services import s3_service
 from app.validation import compute_field_statuses
-from app.validation.text_match import norm_distance
+from app.validation import field_rules as FR
+from app.validation.text_match import digits_only, norm_distance
 from app.validation.thresholds import LIST_MATCH_DIST_MAX, NAME_MATCH_DIST_MAX
 
 logger = logging.getLogger(__name__)
@@ -29,23 +30,22 @@ logger = logging.getLogger(__name__)
 
 # Định nghãi các ràng buộc khi change stt
 ALLOWED_TRANSITIONS: dict[FormStatus, set[FormStatus]] = {
-    FormStatus.under_review:   {FormStatus.extracted},                  # mở hồ sơ để xem xét (khóa)
-    FormStatus.reviewed:       {FormStatus.under_review},               # xong bước kiểm tra
-    FormStatus.valid:          {FormStatus.reviewed},                   # kết luận hợp lệ
-    FormStatus.invalid:        {FormStatus.reviewed},                   # kết luận không hợp lệ
-    FormStatus.returned:       {FormStatus.valid},                      # xác nhận cuối: đã trả kết quả
-    FormStatus.require_adjust: {FormStatus.invalid},                    # xác nhận cuối: yêu cầu chỉnh sửa
+    FormStatus.under_review: {FormStatus.extracted},                  # mở hồ sơ để xem xét (khóa)
+    FormStatus.reviewed:     {FormStatus.under_review},               # xong bước kiểm tra/lưu
+    FormStatus.returned:     {FormStatus.reviewed},                   # trả kết quả (verdict lưu ở temporary_residences)
 }
-# Draft và chính Overdue là không thể thành overdue. Stt còn lại đều được
-NOT_OVERDUE_STATES: set[FormStatus] = {FormStatus.draft, FormStatus.overdue}
+# Draft, Overdue, và Gate-rejected không thể thành overdue. Stt còn lại đều được.
+NOT_OVERDUE_STATES: set[FormStatus] = {FormStatus.draft, FormStatus.overdue, FormStatus.gate_rejected}
 
 # Map mã vấn đề (cổng tiền-trích-xuất) → câu mô tả cho cán bộ.
 _ISSUE_NOTE = {
+    "registered_user_missing":   "Chưa khai số định danh người thay đổi cư trú",
     "registered_user_not_found": "Người/Hộ thay đổi cư trú không có trong CSDL",
     "registered_user_name":      "Họ tên người đăng ký không khớp CSDL",
     "registered_user_birth":     "Ngày sinh người đăng ký không khớp CSDL",
     "registered_user_gender":    "Giới tính người đăng ký không khớp CSDL",
     "registered_user_phone":     "Số điện thoại người đăng ký không khớp CSDL",
+    "registered_user_mail":      "Email người đăng ký không khớp CSDL",
     "location_not_in_ward":      "Địa chỉ đăng ký không thuộc phường tiếp nhận",
 }
 
@@ -143,34 +143,48 @@ def extracted_fields_to_results(
     return rows
 
 
-# Kiểm tra registered_user tồn tại và thông tin khai báo khớp CSDL
-async def check_registered_user(db: AsyncSession, form_id: UUID) -> list[str]:
+# Kiểm tra registered_user tồn tại và thông tin khai báo khớp CSDL.
+# Trả (hard, soft):
+#   - hard: lỗi cứng → chặn cổng (thiếu/không tồn tại định danh; name/birth/gender lệch).
+#   - soft: cảnh báo mềm → KHÔNG chặn, chỉ ghi chú (phone/email có thể đã đổi hợp lệ).
+async def check_registered_user(db: AsyncSession, form_id: UUID) -> tuple[list[str], list[str]]:
     tamtru = (await db.execute(
         select(TamtruForm).where(TamtruForm.form_id == form_id)
     )).scalar_one_or_none()
-    if not tamtru or not tamtru.registered_user_cccd:
-        return []
+    # Không có bản khai tạm trú → để luồng khác xử lý.
+    if not tamtru:
+        return [], []
+    # Thiếu số định danh khai online → không có gì để đối chiếu, chặn để bổ sung.
+    if not tamtru.registered_user_cccd:
+        return ["registered_user_missing"], []
 
     citizen = (await db.execute(
         select(Citizen).where(Citizen.so_dinh_danh == tamtru.registered_user_cccd)
     )).scalar_one_or_none()
+    # Không tìm thấy citizen → khỏi so field (fail-fast nội bộ).
     if not citizen:
-        return ["registered_user_not_found"]
+        return ["registered_user_not_found"], []
 
-    mismatches = []
+    hard: list[str] = []
+    soft: list[str] = []
+    # Field cứng: lệch → chặn cổng.
     if tamtru.registered_user_name:
         if norm_distance(tamtru.registered_user_name, citizen.ho_chu_dem_va_ten or "") > NAME_MATCH_DIST_MAX:
-            mismatches.append("registered_user_name")
+            hard.append("registered_user_name")
     if tamtru.registered_user_birth and citizen.ngay_sinh:
         if tamtru.registered_user_birth != citizen.ngay_sinh:
-            mismatches.append("registered_user_birth")
+            hard.append("registered_user_birth")
     if tamtru.registered_user_gender and citizen.gioi_tinh:
         if tamtru.registered_user_gender.lower() != str(citizen.gioi_tinh.value).lower():
-            mismatches.append("registered_user_gender")
+            hard.append("registered_user_gender")
+    # Field mềm: có thể đã đổi hợp lệ → chỉ ghi chú, không chặn.
     if tamtru.registered_user_phone and citizen.so_dien_thoai:
         if tamtru.registered_user_phone != citizen.so_dien_thoai:
-            mismatches.append("registered_user_phone")
-    return mismatches
+            soft.append("registered_user_phone")
+    if tamtru.registered_user_mail and citizen.email:
+        if tamtru.registered_user_mail.lower() != citizen.email.lower():
+            soft.append("registered_user_mail")
+    return hard, soft
 
 
 # Kiểm tra địa chỉ đăng ký (location_register) có thuộc phường tiếp nhận không
@@ -199,6 +213,41 @@ async def check_location_register(db: AsyncSession, form_id: UUID) -> list[str]:
 
 
 
+def _ocr_text(result: dict[str, Any], label: str) -> str:
+    f = (result.get("extracted_fields") or {}).get(label)
+    if isinstance(f, dict):
+        return f.get("text") or ""
+    return str(f) if f is not None else ""
+
+
+# Xác minh CT01 (giấy đã OCR) và bản khai online có CÙNG MỘT NGƯỜI không.
+# CCCD là định danh CHÍNH (mạnh); họ tên chỉ là phụ — dùng khi CCCD trên CT01 không đọc được.
+# Đặt SAU trích xuất, TRƯỚC compute_field_statuses; lệch → chặn cổng, bỏ qua đối chiếu field.
+# (Tầng 2 cũng lookup citizen theo CCCD OCR; cổng này dừng sớm + cho thông báo "sai người" rõ ràng.)
+async def check_same_person(result: dict[str, Any], db: AsyncSession, form_id: UUID) -> tuple[bool, str]:
+    tamtru = (await db.execute(
+        select(TamtruForm).where(TamtruForm.form_id == form_id)
+    )).scalar_one_or_none()
+    if not tamtru:
+        return True, ""   # không có bản khai để đối chiếu → không chặn ở cổng này
+
+    online_cccd = digits_only(tamtru.registered_user_cccd or "")
+    ct01_cccd = digits_only(_ocr_text(result, FR.KEY_CCCD_NGUOI_DK))
+
+    # CCCD trên CT01 đọc đủ 12 số → so trực tiếp.
+    if len(ct01_cccd) == 12:
+        if online_cccd and ct01_cccd == online_cccd:
+            return True, ""
+        return False, "CCCD trên CT01 khác người khai online"
+
+    # CCCD CT01 không đọc được → fallback so họ tên (yếu, chỉ khi bất khả kháng).
+    ct01_name = _ocr_text(result, "ho_chu_dem_va_ten")
+    if tamtru.registered_user_name and ct01_name:
+        if norm_distance(ct01_name, tamtru.registered_user_name) <= NAME_MATCH_DIST_MAX:
+            return True, ""
+    return False, "Không xác định được CT01 cùng người khai online"
+
+
 def _build_review_note(issues: list[str]) -> str:
     return "; ".join(_ISSUE_NOTE.get(i, i) for i in issues)
 
@@ -219,18 +268,24 @@ async def process_form_bg(form_db_id: UUID, image_path: str, config_path: str) -
         form.status = FormStatus.processing
         await db.commit()
 
-    # Kiểm tra registered_user có khớp CSDL và địa chỉ có thuộc phường tiếp nhận không
+    # Tầng 1 (tiền trích xuất): registered_user khớp CSDL + địa chỉ thuộc phường tiếp nhận.
+    # Hai nhóm check độc lập → gom hết lỗi cứng báo 1 lần (không short-circuit giữa 2 nhóm).
+    soft_notes: list[str] = []
     async with AsyncSessionLocal() as db:
-        issues = await check_registered_user(db, form_db_id)
-        issues += await check_location_register(db, form_db_id)
-        if issues:
-            logger.warning("[BG-OCR] pre-extract gate fail form=%s issues=%s", form_db_id, issues)
+        hard, soft = await check_registered_user(db, form_db_id)
+        hard += await check_location_register(db, form_db_id)
+        if hard:
+            logger.warning("[BG-OCR] pre-extract gate fail form=%s hard=%s soft=%s", form_db_id, hard, soft)
             form = await db.get(Form, form_db_id, with_for_update=True)
             if form:
-                form.status = FormStatus.extracted
-                form.review_note = _build_review_note(issues)
+                # Cổng chạy nền → set gate_rejected trực tiếp (không qua ALLOWED_TRANSITIONS).
+                # Gộp cả ghi chú mềm để cán bộ thấy toàn bộ vấn đề.
+                form.status = FormStatus.gate_rejected
+                form.review_note = _build_review_note(hard + soft)
                 await db.commit()
             return
+        # Pass cổng: nhớ ghi chú mềm (phone/email lệch) để gắn vào review_note sau khi extracted.
+        soft_notes = soft
 
     # Bắt đầu trích xuất
     logger.info("[BG-OCR] EXTRACTING form=%s", form_db_id)
@@ -256,7 +311,25 @@ async def process_form_bg(form_db_id: UUID, image_path: str, config_path: str) -
                 await db.rollback()
         return
 
-    # Lưu form_result + status → extracted
+    # Tầng 1 (sau trích xuất): CT01 và bản khai online có cùng một người không.
+    async with AsyncSessionLocal() as db:
+        is_same, reason = await check_same_person(result, db, form_db_id)
+        if not is_same:
+            logger.warning("[BG-OCR] same-person gate fail form=%s: %s", form_db_id, reason)
+            form = await db.get(Form, form_db_id, with_for_update=True)
+            if form and form.status == FormStatus.processing:
+                # Lưu raw OCR (không verdict) để cán bộ đối chứng CT01, rồi chặn cổng.
+                await db.execute(sa_delete(FormResult).where(FormResult.form_id == form.id))
+                for row in extracted_fields_to_results(form.id, result, {}):
+                    db.add(row)
+                form.status = FormStatus.gate_rejected
+                form.review_note = reason
+                await db.commit()
+            else:
+                await db.rollback()
+            return
+
+    # Tầng 2: đối chiếu field vs CSDL → lưu form_result + status → extracted
     async with AsyncSessionLocal() as db:
         form = await db.get(Form, form_db_id, with_for_update=True)
         if not form or form.status != FormStatus.processing:
@@ -273,6 +346,9 @@ async def process_form_bg(form_db_id: UUID, image_path: str, config_path: str) -
         for row in extracted_fields_to_results(form.id, result, verdicts):
             db.add(row)
         form.status = FormStatus.extracted
+        # Ghi chú mềm từ cổng tầng 1 (phone/email lệch) — không chặn, chỉ để cán bộ biết.
+        if soft_notes:
+            form.review_note = _build_review_note(soft_notes)
         await db.commit()
 
     # Upload warped image lên S3 và lưu path vào evidence CT01
@@ -323,13 +399,15 @@ RE_EXTRACTABLE_STATES: set[FormStatus] = {
 }
 
 # Trạng thái cho phép staff kích hoạt lại trích xuất thủ công.
-# Không bao gồm: draft/submitted/processing (đang chạy), valid/invalid/returned/require_adjust (đã có quyết định).
+# Không bao gồm: draft/submitted/processing (đang chạy), returned (đã trả kết quả).
+# gate_rejected: cho chạy lại sau khi người dân bổ sung/sửa dữ liệu online (cổng sẽ pass nếu đã sửa).
 MANUAL_REEXTRACT_STATES: set[FormStatus] = {
     FormStatus.failed,
     FormStatus.overdue,
     FormStatus.extracted,
     FormStatus.under_review,
     FormStatus.reviewed,
+    FormStatus.gate_rejected,
 }
 
 

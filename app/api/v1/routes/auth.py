@@ -1,30 +1,25 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from urllib.parse import urlencode
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from fastapi.security import HTTPBearer
 from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import jwt
+from uuid import UUID
 
 from app.database import get_db
 from app.config import get_settings
 from app.core.oauth import oauth
 from app.core.rate_limit import limiter
-from app.models.user import User, RefreshToken
-from app.schemas.auth import (
-    RegisterRequest, LoginRequest, StaffLoginRequest,
-    TokenResponse, RefreshRequest, ChangePasswordRequest,
-)
-from app.schemas.user import UserResponse
-from app.schemas.password_reset import (
-    ForgotPasswordRequest, VerifyOtpRequest, ResetPasswordRequest, MessageResponse,
-)
-from app.core.security import (
-    hash_password, verify_password, hash_token,
-    create_access_token, create_refresh_token, decode_token,
-)
+from app.core.security import (hash_password, verify_password, hash_token,create_access_token, create_refresh_token, decode_token,)
 from app.core.deps import get_current_user, get_current_superuser, get_user_role
+from app.models.user import User, RefreshToken
+from app.models.form import FormStatus
+from app.schemas.auth import ( RegisterRequest, LoginRequest, StaffLoginRequest,TokenResponse, RefreshRequest,)
+from app.schemas.form import FormResponse
+from app.schemas.user import UserResponse
+from app.schemas.password_reset import (ForgotPasswordRequest, VerifyOtpRequest, ResetPasswordRequest, MessageResponse,)
 from app.services.google_auth_service import get_or_create_google_user
 from app.services.password_reset_service import request_otp, verify_otp, reset_password
 
@@ -142,11 +137,7 @@ async def logout(
 
 
 @router.get("/me", response_model=UserResponse)
-async def me(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Current user's profile + derived role — FE's single source after login."""
+async def me(current_user: User = Depends(get_current_user),db: AsyncSession = Depends(get_db),):
     resp = UserResponse.model_validate(current_user)
     resp.role = await get_user_role(current_user, db)
     return resp
@@ -228,3 +219,16 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
         qs = urlencode({"access_token": tokens.access_token, "refresh_token": tokens.refresh_token})
         return RedirectResponse(url=f"{settings.frontend_url}/auth/callback?{qs}")
     return JSONResponse(tokens.model_dump())
+
+# @router.get("/list-form",response_model=list[FormResponse],summary="List submitted form by user id")
+# async def list_form_by_user_id(
+#     type_id: UUID | None = None,
+#     organization_id: UUID | None = None,
+#     status_filter: FormStatus | None = Query(default=None, alias="status"),
+#     date_from: date | None = Query(default=None, description="Lọc các form được nộp từ ngày này"),
+#     date_to: date | None = Query(default=None, description="Lọc các form được nộp đến hết ngày này"),
+#     page: int = 1,
+#     page_size: int = 10,
+#     current_user: User = Depends(get_current_user),
+#     db: AsyncSession = Depends(get_db),
+# ):

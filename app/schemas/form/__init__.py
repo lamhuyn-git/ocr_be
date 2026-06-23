@@ -12,7 +12,8 @@ from app.schemas.form.tamtru_form import (  # noqa: F401
     TamtruFormInput, TamtruFormCreate, TamtruFormUpdate, TamtruFormResponse,
 )
 from app.schemas.form.form_result import (  # noqa: F401
-    FormResultCreate, FormResultUpdate, FormResultResponse, FormResultConfirmRequest,
+    FormResultCreate, FormResultUpdate, FormResultResponse,
+    AdminSaveChangeRequest, AdminSaveChangeFieldItem,
 )
 from app.schemas.form.form import (  # noqa: F401
     FormCreate, FormDraftCreate, FormDraftUpdate, FormTransitionRequest,
@@ -25,6 +26,7 @@ __all__ = [
     "EvidenceInput", "EvidenceCreate", "EvidenceUpdate", "EvidenceResponse",
     "TamtruFormInput", "TamtruFormCreate", "TamtruFormUpdate", "TamtruFormResponse",
     "FormResultCreate", "FormResultUpdate", "FormResultResponse", "FormResultConfirmRequest",
+    "AdminSaveChangeRequest", "AdminSaveChangeFieldItem",
     "FormCreate", "FormDraftCreate", "FormDraftUpdate", "FormTransitionRequest",
     "FormCreateResponse", "FormResponse", "FormDetailResponse", "FormList", "FormExtractResponse",
 ]

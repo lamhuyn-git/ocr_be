@@ -26,7 +26,7 @@ def decide_match(ocr_value: str, db_value: str, conf=None, distance=None, soft=F
     # OCR trống: không gợi ý vì không có gì để đối chiếu.
     hint = None if (soft or not ocr_value) else db_value
     if conf is not None and conf < OCR_CONF_MIN:
-        return Verdict(REVIEW, "Hệ thống không chắc về kết quả trích xuất", hint, distance, db_value, ocr_value)
+        return Verdict(REVIEW, "Hệ thống không chắc về kết quả", hint, distance, db_value, ocr_value)
     if distance == 0:
         return Verdict(PASS, "khớp với CSDL", None, 0.0, db_value, ocr_value)
     if distance <= NEAR_DIST_MAX:

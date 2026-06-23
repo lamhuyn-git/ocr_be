@@ -16,19 +16,22 @@ class FormStatus(str, enum.Enum):
     processing     = "processing"      # Đang trích xuất — OCR đang chạy, đối chiếu dữ liệu
     extracted      = "extracted"       # Đã trích xuất — AI xong, chờ kiểm tra viên
     under_review   = "under_review"    # Đang xem xét — kiểm tra viên đang xử lý (khóa hồ sơ)
-    reviewed       = "reviewed"        # Đã xem — xong bước kiểm tra, qua bước thêm lý do trả về
-    valid          = "valid"           # Hợp lệ — đã duyệt, lưu CSDL + thông báo người dân
-    invalid        = "invalid"         # Không hợp lệ — bị trả lại, dân cần chỉnh sửa nộp lại
-    returned       = "returned"        # Đã trả kết quả cho người dân (xác nhận cuối sau valid)
-    require_adjust = "require_adjust"  # Yêu cầu chỉnh sửa (xác nhận cuối sau invalid)
+    reviewed       = "reviewed"        # Đã xem — cán bộ đã soát/lưu, chờ trả kết quả
+    returned       = "returned"        # Đã trả kết quả cho người dân (xác nhận cuối sau reviewed)
     failed         = "failed"          # Lỗi — hồ sơ bị lỗi trích xuất
     overdue        = "overdue"         # Quá hạn — quá 7 ngày chưa xử lý
+    gate_rejected  = "gate_rejected"   # Bị chặn ở cổng kiểm tra (định danh/địa chỉ/sai người) — chưa cần OCR
 
 
 class FormResultStatus(str, enum.Enum):
     valid       = "valid"        # field trích xuất tin cậy, không cần soát
     need_review = "need_review"  # cần cán bộ soát lại (mặc định)
     invalid     = "invalid"      # field sai/không hợp lệ
+
+
+class ResultConfirmStatus(str, enum.Enum):
+    valid   = "valid"    # cán bộ xác nhận field hợp lệ
+    invalid = "invalid"  # cán bộ xác nhận field không hợp lệ
 
 
 class FormType(Base):
@@ -134,12 +137,27 @@ class FormResult(Base):
     label           = Column(String(255), nullable=False)          # tên field (vd "ho_ten")
     raw_value       = Column(Text, nullable=True)                  # giá trị OCR thô
     suggested_value = Column(Text, nullable=True)                  # giá trị CSDL gợi ý (khi REVIEW/ERROR), null nếu PASS
-    final_value     = Column(Text, nullable=True)                  # giá trị cán bộ chốt, có thể null
     note            = Column(Text, nullable=True)                  # lý do verdict (vd: "đọc rõ nhưng khác CSDL")
     status          = Column(Enum(FormResultStatus), default=FormResultStatus.need_review,
                              nullable=False, index=True)           # valid | need_review | invalid
-    confirmed_by    = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at      = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    form = relationship("Form", back_populates="results")
+    form     = relationship("Form", back_populates="results")
+    confirms = relationship("ResultConfirm", back_populates="checkpoint",
+                            cascade="all, delete-orphan", lazy="noload",
+                            order_by="ResultConfirm.created_at")
+
+
+class ResultConfirm(Base):
+    """Lịch sử confirm của 1 form_result: mỗi lần cán bộ lưu draft tạo 1 dòng mới."""
+    __tablename__ = "result_confirm"
+
+    id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    checkpoint_id = Column(UUID(as_uuid=True), ForeignKey("form_results.id", ondelete="CASCADE"),
+                           nullable=False, index=True)
+    confirmed_by = Column(UUID(as_uuid=True), nullable=True)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    final_status = Column(Enum(ResultConfirmStatus), nullable=False)
+
+    checkpoint = relationship("FormResult", back_populates="confirms")
 
