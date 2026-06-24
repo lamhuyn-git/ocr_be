@@ -18,7 +18,7 @@ from app.core.deps import (
 from app.database import get_db
 from app.models import Citizen
 from app.models.form import (
-    FormType, Form as FormModel, TamtruForm, Evidence, FormResult, FormStatus, ResultConfirm,
+    FormType, Form as FormModel, TamtruForm, Evidence, FormResult, FormStatus, ResultConfirm, FormResultStatus
 )
 from app.models.organization import Organization
 from app.models.user import User
@@ -185,6 +185,37 @@ async def _build_form_detail(form: FormModel, db: AsyncSession) -> FormDetailRes
     evidences = (await db.execute(select(Evidence).where(Evidence.form_id == form.id))).scalars().all()
     results   = (await db.execute(select(FormResult).where(FormResult.form_id == form.id).order_by(FormResult.label))).scalars().all()
 
+    # Lấy bản confirm MỚI NHẤT cho mỗi field
+    result_ids = [r.id for r in results]
+    latest_confirm: dict[UUID, ResultConfirm] = {}
+    if result_ids:
+        confirms = (await db.execute(
+            select(ResultConfirm)
+            .where(ResultConfirm.checkpoint_id.in_(result_ids))
+            .order_by(ResultConfirm.created_at)
+        )).scalars().all()
+        for c in confirms:
+            latest_confirm[c.checkpoint_id] = c  # order asc -> ghi đè giữ bản mới nhất
+
+    # Lấy email cán bộ đã chốt (1 query gom cho mọi confirmed_by).
+    confirmer_ids = {c.confirmed_by for c in latest_confirm.values() if c.confirmed_by}
+    email_by_id: dict[UUID, str | None] = {}
+    if confirmer_ids:
+        users = (await db.execute(
+            select(User).where(User.id.in_(confirmer_ids))
+        )).scalars().all()
+        email_by_id = {u.id: u.email for u in users}
+
+    validated_results = []
+    for r in results:
+        item = FormResultDetailResponse.model_validate(r)
+        confirm = latest_confirm.get(r.id)
+        if confirm:
+            item.status = FormResultStatus(confirm.final_status.value)
+            item.confirmed_by = confirm.confirmed_by
+            item.confirmed_by_email = email_by_id.get(confirm.confirmed_by)
+        validated_results.append(item)
+
     # Build evidences group
     ev_detail = FormEvidencesDetail()
     for ev in evidences:
@@ -209,7 +240,7 @@ async def _build_form_detail(form: FormModel, db: AsyncSession) -> FormDetailRes
         form_type_detail=FormTypeResponse.model_validate(form_type) if form_type else None,
         sumited_content=TamtruFormDetailResponse.model_validate(tamtru) if tamtru else None,
         evidences=ev_detail,
-        validated_results=[FormResultDetailResponse.model_validate(r) for r in results],
+        validated_results=validated_results,
     )
 
 

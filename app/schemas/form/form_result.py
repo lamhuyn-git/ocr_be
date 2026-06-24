@@ -47,8 +47,10 @@ class FormResultDetailResponse(BaseModel):
     raw_value:       str | None
     suggested_value: str | None
     note:            str | None
-    status:          FormResultStatus
+    status:          FormResultStatus  # ghi đè bằng final_status nếu cán bộ đã chốt
     created_at:      datetime
+    confirmed_by:       UUID | None = None
+    confirmed_by_email: str | None = None  # email cán bộ đã chốt (join users)
 
 
 class AdminSaveChangeFieldItem(BaseModel):
