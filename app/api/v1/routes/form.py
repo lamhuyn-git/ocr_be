@@ -223,7 +223,7 @@ async def get_detail_forms_by_id(
     if not form:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
     await assert_form_ward_access(form, current_user, db)
-    if form.status == FormStatus.extracted:
+    if form.status not in (FormStatus.processing, FormStatus.under_review):
         form.status = FormStatus.under_review
         await db.commit()
         await db.refresh(form)
@@ -268,7 +268,8 @@ async def admin_save_change(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
     await assert_form_ward_access(form, current_user, db)
 
-    if body.updated_fields != None:
+    has_change = bool(body.updated_fields)
+    if has_change:
         for item in body.updated_fields:
             result = await db.get(FormResult, item.id)
             if not result or result.form_id != body.form_id:
@@ -281,7 +282,8 @@ async def admin_save_change(
                 confirmed_by=body.confirmed_by,
                 final_status=item.status,
             ))
-    form.status = FormStatus.reviewed
+
+    form.status = FormStatus.reviewed if has_change else body.from_status
 
     await db.commit()
     return {"form_id": body.form_id, "status": form.status}

@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.form import FormResultStatus, ResultConfirmStatus
+from app.models.form import FormResultStatus, ResultConfirmStatus, FormStatus
 
 
 class FormResultCreate(BaseModel):
@@ -60,3 +60,4 @@ class AdminSaveChangeRequest(BaseModel):
     form_id:        UUID
     confirmed_by:   UUID | None = None
     updated_fields: list[AdminSaveChangeFieldItem] | None = None
+    from_status:    FormStatus
