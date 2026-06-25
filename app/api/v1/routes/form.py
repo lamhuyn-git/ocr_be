@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import (
     APIRouter, BackgroundTasks, Depends, HTTPException, Query, status,
 )
-from sqlalchemy import select, delete as sa_delete
+from sqlalchemy import select, delete as sa_delete, func, or_, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -24,7 +24,8 @@ from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.form import (
     FormCreateResponse, FormResponse, FormDetailResponse,
-    FormCreate,
+    FormCreate, FormDraftCreate, UserFormListItem, UserFormListResponse,
+    UserFormCounts,
     AdminSaveChangeRequest,
 )
 from app.schemas.form.evidence import FormEvidencesDetail
@@ -41,6 +42,12 @@ settings = get_settings()
 router = APIRouter(prefix="/form", tags=["Form"])
 
 _ALLOWED_IMAGE_EXTS = {"jpg", "jpeg", "png", "bmp", "tiff", "webp"}
+_PROCESSING_STATUSES = (
+    FormStatus.submitted, FormStatus.processing, FormStatus.extracted,
+    FormStatus.under_review, FormStatus.reviewed, FormStatus.overdue,
+)
+_VALID_STATUSES = (FormStatus.returned,)
+_INVALID_STATUSES = (FormStatus.failed, FormStatus.gate_rejected)
 
 
 @router.get("/list", response_model=list[FormResponse], summary="List submitted forms filtered by type and/or organization")
@@ -167,7 +174,6 @@ async def submit_form(
 
 
 def _presign_path(path_url: str | None) -> str | None:
-    """Convert S3 private path → presigned GET URL có thể xem được."""
     if not path_url:
         return None
     try:
@@ -175,7 +181,6 @@ def _presign_path(path_url: str | None) -> str | None:
         return s3_service.generate_presigned_get(key)
     except Exception:
         return path_url  # fallback: trả path gốc nếu presign thất bại
-
 
 
 async def _build_form_detail(form: FormModel, db: AsyncSession) -> FormDetailResponse:
@@ -318,3 +323,104 @@ async def admin_save_change(
 
     await db.commit()
     return {"form_id": body.form_id, "status": form.status}
+
+
+@router.post("/draft", response_model=FormCreateResponse, status_code=status.HTTP_200_OK, summary="Lưu draft hồ sơ của citizen")
+async def save_as_draft(
+    body: FormDraftCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    form = FormModel(
+        form_type_id=body.form_type_id,
+        org_id=body.org_id,
+        submit_by=current_user.id,
+        notification_on=body.notification_on,
+        status=FormStatus.draft,
+    )
+    db.add(form)
+    await db.flush()
+
+    # Tạo Evidence (nếu có)
+    if body.evidences:
+        for path_url in (ev.path_url for ev in body.evidences):
+            db.add(Evidence(form_id=form.id, path_url=path_url))
+
+    # Draft: giữ lại dữ liệu đã khai kể cả khi chưa chọn thủ tục (form_type_id null).
+    if body.form_spec:
+        await _upsert_tamtru(form.id, body.form_spec, db)
+
+    await db.flush()
+    await db.refresh(form)
+    return FormCreateResponse(form_id_db=form.id, status=form.status)
+
+
+@router.get("/user-list", response_model=UserFormListResponse, summary="List a citizen's own forms (paginated)")
+async def list_user_forms(
+    user_id: UUID,
+    group: str | None = Query(default=None, description="Nhóm tab: all | submitted | draft"),
+    page: int = 1,
+    page_size: int = 10,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    page = max(page, 1)
+    page_size = min(max(page_size, 1), 100)
+
+    # Công dân chỉ xem được hồ sơ của chính mình
+    if not current_user.is_superuser and user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    # Thống kê theo nhóm (toàn bộ hồ sơ của user, không phụ thuộc tab/tìm kiếm/trang).
+    status_rows = (await db.execute(
+        select(FormModel.status, func.count())
+        .where(FormModel.submit_by == user_id)
+        .group_by(FormModel.status)
+    )).all()
+    sc = {s: c for s, c in status_rows}
+    total_all = sum(sc.values())
+    draft_n = sc.get(FormStatus.draft, 0)
+    counts = UserFormCounts(
+        all=total_all,
+        submitted=total_all - draft_n,
+        draft=draft_n,
+        processing=sum(sc.get(s, 0) for s in _PROCESSING_STATUSES),
+        valid=sum(sc.get(s, 0) for s in _VALID_STATUSES),
+        invalid=sum(sc.get(s, 0) for s in _INVALID_STATUSES),
+    )
+
+    query = (
+        select(FormModel, FormType.type_name, TamtruForm.location_register)
+        .outerjoin(FormType, FormType.id == FormModel.form_type_id)
+        .outerjoin(TamtruForm, TamtruForm.form_id == FormModel.id)
+        .where(FormModel.submit_by == user_id)
+    )
+    if group == "draft":
+        query = query.where(FormModel.status == FormStatus.draft)
+    elif group == "submitted":
+        query = query.where(FormModel.status != FormStatus.draft)
+        
+    total = (await db.execute(
+        select(func.count()).select_from(query.subquery())
+    )).scalar_one()
+
+    rows = (await db.execute(
+        query.order_by(FormModel.created_at.desc())
+        .offset((page - 1) * page_size).limit(page_size)
+    )).all()
+
+    items = [
+        UserFormListItem(
+            id=form.id,
+            code=str(form.id)[:6].upper(),  # mã hồ sơ hiển thị
+            status=form.status,
+            form_type_name=type_name,
+            location=location,
+            created_at=form.created_at,
+            completed_at=form.updated_at if form.status == FormStatus.returned else None,
+            reject_reason=form.review_note,
+            notify_method=form.notification_on,
+        )
+        for form, type_name, location in rows
+    ]
+    return UserFormListResponse(items=items, total=total, counts=counts)

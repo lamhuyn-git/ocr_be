@@ -5,8 +5,9 @@ import time
 import logging
 from pathlib import Path
 from typing import Any
-
+import tempfile
 import cv2
+from app.services import s3_service
 
 from app.config import get_settings
 
@@ -24,22 +25,33 @@ def _imports():
 
 TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "pipeline" / "configs" / "templates"
 
+def save_file(
+    folder: str,
+    form_id: str,
+    version: str,
+    extension: str,
+    content: bytes,
+    content_type: str,
+) -> str:
+    if settings.s3_bucket:
+        key = f"templates/{folder}/{form_id}_v{version}.{extension}"
+        return s3_service.upload_bytes(
+            content,
+            key,
+            content_type=content_type,
+        )
 
-def save_template_config(form_id: str, version: str, yaml_bytes: bytes) -> str:
-    TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
-    filename = f"{form_id}_v{version}.yaml"
-    dest = TEMPLATES_DIR / filename
-    dest.write_bytes(yaml_bytes)
+    base_dir = Path(f"storage/{folder}")
+    base_dir.mkdir(parents=True, exist_ok=True)
+
+    dest = base_dir / f"{form_id}_v{version}.{extension}"
+    dest.write_bytes(content)
+
     return str(dest)
 
-
 def validate_template_yaml(yaml_bytes: bytes) -> dict:
-    import yaml
-    import tempfile
-
     _, load_config, _, _ = _imports()
 
-    # ghi file input ra file tạm
     with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as tmp:
         tmp.write(yaml_bytes)
         tmp_path = tmp.name
@@ -57,6 +69,14 @@ def validate_template_yaml(yaml_bytes: bytes) -> dict:
 def run_form_pipeline(image_path: str, config_path: str) -> dict[str, Any]:
     align_form, load_config, _, extract_fields = _imports()
 
+    # Nếu config lưu trên S3, tải về file tạm rồi dùng local path
+    local_config_path = config_path
+    config_tmp: str | None = None
+    if config_path.startswith("http"):
+        from app.services import s3_service
+        local_config_path = s3_service.download_to_temp(config_path)
+        config_tmp = local_config_path
+
     start = time.time()
 
     # Đọc ảnh
@@ -73,8 +93,8 @@ def run_form_pipeline(image_path: str, config_path: str) -> dict[str, Any]:
                 align_meta.get("method"), quality, align_meta.get("n_inliers"))
 
     # Load config template
-    logger.info("[PIPELINE] 3/4 Loading config: %s", config_path)
-    config = load_config(config_path)
+    logger.info("[PIPELINE] 3/4 Loading config: %s", local_config_path)
+    config = load_config(local_config_path)
     # config = apply_quality_overrides(config, quality)  # Chưa dùng đến, để dành cho sau khi có nhiều tier hơn và cần override config theo tier.
 
     # Trích xuất field (chuẩn hoá per-field đã chạy trong extract_fields theo config)
@@ -108,6 +128,12 @@ def run_form_pipeline(image_path: str, config_path: str) -> dict[str, Any]:
     except Exception:
         logger.warning("[PIPELINE] Không thể lưu warped image ra temp file")
         warped_tmp_path = None
+
+    if config_tmp:
+        try:
+            os.unlink(config_tmp)
+        except OSError:
+            pass
 
     return {
         "extracted_fields":   raw_fields,

@@ -2,8 +2,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 from uuid import UUID
-
 from pydantic import BaseModel, ConfigDict, Field
+
 
 
 class FormTemplateUpdate(BaseModel):
@@ -11,6 +11,7 @@ class FormTemplateUpdate(BaseModel):
     version:      str | None = Field(default=None, max_length=50)
     is_active:    bool | None = None
     field_schema: Any | None = None
+    template_url: str | None = None
 
 
 class FormTemplateResponse(BaseModel):
@@ -22,5 +23,6 @@ class FormTemplateResponse(BaseModel):
     version:      str
     is_active:    bool
     field_schema: Any | None
+    template_url: str | None
     created_by:   UUID | None
     created_at:   datetime

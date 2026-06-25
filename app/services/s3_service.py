@@ -1,8 +1,3 @@
-"""S3/MinIO storage cho luồng upload presigned.
-
-FE xin presigned PUT URL → PUT ảnh thẳng lên S3 → lưu file_url làm path_url.
-Khi chạy OCR, BE tải ảnh từ S3 về file tạm (pipeline đọc từ disk).
-"""
 from __future__ import annotations
 
 import logging
@@ -31,8 +26,6 @@ def _client():
             detail="S3 storage chưa được cấu hình (thiếu S3_BUCKET).",
         )
     addressing = "path" if settings.s3_use_path_style else "auto"
-    # Ép endpoint theo vùng để presigned URL có host vùng ngay từ đầu
-    # (tránh S3 trả 307 redirect global -> regional làm hỏng CORS + chữ ký).
     endpoint = settings.s3_endpoint_url or (
         f"https://s3.{settings.aws_region}.amazonaws.com"
         if settings.aws_region
@@ -84,7 +77,6 @@ def generate_presigned_put(key: str, content_type: str) -> str:
 
 
 def generate_presigned_get(key: str) -> str:
-    """URL ký sẵn để XEM/tải ảnh từ bucket private (hết hạn sau presign_expire)."""
     try:
         return _client().generate_presigned_url(
             "get_object",
@@ -99,7 +91,6 @@ def generate_presigned_get(key: str) -> str:
         ) from exc
 
 
-#  get key từ path truyền vào
 def key_from_path_url(path_url: str) -> str:
     if "://" not in path_url:
         return path_url.lstrip("/")
@@ -111,7 +102,6 @@ def key_from_path_url(path_url: str) -> str:
 
 
 def upload_file(local_path: str, key: str, content_type: str = "image/jpeg") -> str:
-    """Upload file từ disk lên S3 (server-side). Trả về public path_url."""
     try:
         _client().upload_file(
             local_path, settings.s3_bucket, key,
@@ -119,6 +109,20 @@ def upload_file(local_path: str, key: str, content_type: str = "image/jpeg") -> 
         )
     except (BotoCoreError, ClientError) as exc:
         logger.exception("upload_file failed key=%s", key)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail="Upload S3 failed.") from exc
+    return public_url(key)
+
+
+def upload_bytes(data: bytes, key: str, content_type: str = "application/octet-stream") -> str:
+    import io
+    try:
+        _client().upload_fileobj(
+            io.BytesIO(data), settings.s3_bucket, key,
+            ExtraArgs={"ContentType": content_type},
+        )
+    except (BotoCoreError, ClientError) as exc:
+        logger.exception("upload_bytes failed key=%s", key)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
                             detail="Upload S3 failed.") from exc
     return public_url(key)
@@ -136,3 +140,26 @@ def download_to_temp(path_url: str) -> str:
         logger.exception("download S3 failed key=%s", key)
         raise HTTPException(502, detail="Download S3 failed.") from exc
     return tmp_path
+
+
+def generate_presigned_download(key: str,filename: str | None = None,) -> str:
+    try:
+        return _client().generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": settings.s3_bucket,
+                "Key": key,
+                "ResponseContentDisposition": (
+                    f'attachment; filename="{filename}"'
+                    if filename
+                    else "attachment"
+                ),
+            },
+            ExpiresIn=settings.s3_presign_expire_seconds,
+        )
+    except (BotoCoreError, ClientError) as exc:
+        logger.exception("presign download failed key=%s", key)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Không tạo được URL download.",
+        ) from exc

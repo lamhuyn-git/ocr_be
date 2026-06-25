@@ -52,7 +52,8 @@ class FormTemplate(Base):
                           nullable=False, index=True)
     name         = Column(String(255), nullable=False)
     version      = Column(String(50), nullable=False, default="1.0")
-    config_path  = Column(String(512), nullable=False)      # YAML config trên đĩa
+    config_path  = Column(String(512), nullable=False)      # YAML config (local path hoặc S3 URL)
+    template_url = Column(String(1024), nullable=True)      # URL file Word để user download & điền
     field_schema = Column(JSONB, nullable=True)             # mô tả field/section để validate + render
     is_active    = Column(Boolean, default=True, nullable=False)
     created_by   = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)

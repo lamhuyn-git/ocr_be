@@ -51,10 +51,6 @@ def load_config(path: str) -> dict:
 
 
 def _check_semantics(config: dict, path: str) -> None:
-    """
-    Kiểm tra ROI không tràn ra ngoài ảnh: x + w <= 1 và y + h <= 1.
-    (1e-9 là dung sai nhỏ để bỏ qua sai số làm tròn số thực.)
-    """
     for name, field in config["fields"].items():
         roi = field["roi_norm"]
 

@@ -17,9 +17,9 @@ class FormCreate(BaseModel):
     org_id: UUID
     form_type_id: UUID
     submit_by: UUID
-    notification_on: str | None = None   # nơi nhận thông báo cuối cùng (email/sđt)
-    evidences: list[EvidenceInput]
-    form_spec: TamtruFormInput
+    notification_on: str | None = None 
+    evidences: list[EvidenceInput] | None
+    form_spec: TamtruFormInput | None
 
 
 class FormDraftCreate(BaseModel):
@@ -40,9 +40,34 @@ class FormDraftUpdate(BaseModel):
 
 
 class FormTransitionRequest(BaseModel):
-    """Kiểm tra viên chuyển trạng thái hồ sơ (under_review/reviewed/returned)."""
     to_status: FormStatus
     note: str | None = Field(default=None, max_length=4000)
+
+
+class UserFormListItem(BaseModel):
+    id:             UUID
+    code:           str                
+    status:         FormStatus
+    location:       str | None = None  
+    created_at:     datetime           
+    completed_at:   datetime | None = None  
+    reject_reason:  str | None = None   
+    notify_method:  str | None = None   
+
+
+class UserFormCounts(BaseModel):
+    all:        int = 0
+    submitted:  int = 0   
+    draft:      int = 0
+    processing: int = 0   
+    valid:      int = 0   
+    invalid:    int = 0  
+
+
+class UserFormListResponse(BaseModel):
+    items:  list[UserFormListItem]
+    total:  int            
+    counts: UserFormCounts
 
 
 class FormCreateResponse(BaseModel):

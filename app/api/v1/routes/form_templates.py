@@ -1,17 +1,16 @@
 from __future__ import annotations
 from uuid import UUID
-
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, status, File, Form, UploadFile
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.deps import get_current_user, get_current_superuser
 from app.database import get_db
 from app.models.form import FormType, FormTemplate
 from app.models.user import User
 from app.schemas.form import FormTemplateUpdate, FormTemplateResponse
-from app.services.form_service import save_template_config, validate_template_yaml
+from app.services.form_service import save_file, validate_template_yaml
+from app.services import s3_service
 
 router = APIRouter(prefix="/form-templates", tags=["FormTemplate"])
 
@@ -28,30 +27,44 @@ async def _deactivate_actives(db: AsyncSession, form_type_id: UUID, exclude_id: 
 
 @router.post("", response_model=FormTemplateResponse, status_code=status.HTTP_201_CREATED, summary="Upload a template version")
 async def create_template(
-    form_type_id: UUID = Form(..., description="Form type ID this template belongs to"),
-    name: str = Form(..., description="Tên template, vd 'Đơn CT-01'"),
-    version: str = Form(default="1.0"),
+    form_type_id: UUID,
+    name: str,
+    version: str,
     config_file: UploadFile = File(..., description="YAML config"),
+    template_file: UploadFile = File(..., description="URL file Word template (.docx) để user download & điền"),
     current_user: User = Depends(get_current_superuser),
     db: AsyncSession = Depends(get_db),
 ):
     if not await db.get(FormType, form_type_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form type not found")
-    if not config_file.filename or not config_file.filename.endswith((".yaml", ".yml")):
+    if not config_file.filename.endswith((".yaml", ".yml")):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Config must be .yaml/.yml")
     yaml_bytes = await config_file.read()
+
     try:
         validate_template_yaml(yaml_bytes)
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Invalid template config: {exc}")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Invalid template config: {exc}")
 
-    config_path = save_template_config(name, version, yaml_bytes)
-    # template mới là bản active → tắt các bản active cũ cùng form_type
+    if not template_file.filename.endswith(".docx"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Template file must be .docx",)
+    template_bytes = await template_file.read()
+
+    config_path = save_file("yaml", name, version, "yaml", yaml_bytes, "application/yaml",)
+    template_path = save_file("docx", name, version, "docx", template_bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document",)
+
     await _deactivate_actives(db, form_type_id)
 
-    template = FormTemplate(form_type_id=form_type_id, name=name, version=version,
-                            config_path=config_path, is_active=True, created_by=current_user.id)
+    template = FormTemplate(
+        form_type_id=form_type_id, 
+        name=name, 
+        version=version,
+        config_path=config_path, 
+        template_url= template_path,
+        is_active=True, 
+        created_by=current_user.id
+    )
+
     db.add(template)
     await db.flush()
     await db.refresh(template)
@@ -71,16 +84,16 @@ async def list_templates(
     return list(rows)
 
 
-@router.get("/{template_id}", response_model=FormTemplateResponse, summary="Get a template")
-async def get_template(
-    template_id: UUID,
-    _: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    template = await db.get(FormTemplate, template_id)
-    if not template:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
-    return template
+# @router.get("/{template_id}", response_model=FormTemplateResponse, summary="Get a template")
+# async def get_template(
+#     template_id: UUID,
+#     _: User = Depends(get_current_user),
+#     db: AsyncSession = Depends(get_db),
+# ):
+#     template = await db.get(FormTemplate, template_id)
+#     if not template:
+#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+#     return template
 
 
 @router.patch("/{template_id}", response_model=FormTemplateResponse, summary="Update a template (metadata / activate)")
@@ -94,7 +107,7 @@ async def update_template(
     if not template:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
 
-    fields = body.model_dump(exclude_unset=True)
+    fields = model_dump(exclude_unset=True)
     # Bật active bản này → tắt các bản active khác cùng form_type (giữ 1 active/loại)
     if fields.get("is_active") is True:
         await _deactivate_actives(db, template.form_type_id, exclude_id=template.id)
@@ -117,3 +130,30 @@ async def delete_template(
     await db.delete(template)
     await db.flush()
     return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "Deleted template successfully"})
+
+@router.get("/download")
+async def download_template( form_name : str, _: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),):  
+    print("form_name =", form_name)
+    result = await db.execute(
+        select(FormTemplate.template_url)
+        .join(FormType, FormTemplate.form_type_id == FormType.id,)
+        .where(
+            and_(func.lower(FormType.type_name) == form_name, FormTemplate.is_active.is_(True),)
+        )
+    )
+
+    template_url = result.scalar_one_or_none()
+
+    if not template_url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Không tìm thấy file mẫu.",)
+
+    key = s3_service.key_from_path_url(template_url)
+
+    download_url = s3_service.generate_presigned_download(
+        key=key,
+        filename="Mau_CT01.docx",
+    )
+
+    return {
+        "download_url": download_url
+    }

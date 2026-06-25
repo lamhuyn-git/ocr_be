@@ -6,8 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class EvidenceInput(BaseModel):
-    """Evidence lồng trong payload submit/draft — form_id suy ra từ form đang tạo."""
-    path_url: str = Field(min_length=1, max_length=512)
+    path_url: str = Field(min_length=1, max_length=512) 
 
 
 class EvidenceCreate(BaseModel):

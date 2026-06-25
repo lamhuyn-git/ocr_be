@@ -4,9 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-
+# Chấp nhận cả YYYY-MM-DD và DD/MM/YYYY
 def _parse_date(v) -> date | None:
-    """Accept ISO (YYYY-MM-DD) hoặc DD/MM/YYYY từ FE."""
     if v is None or isinstance(v, date):
         return v
     s = str(v).strip()
@@ -21,7 +20,6 @@ def _parse_date(v) -> date | None:
 
 
 class TamtruFormInput(BaseModel):
-    """Spec tạm trú lồng trong payload submit/draft — form_id suy ra từ form đang tạo."""
     case:                   str | None = Field(default=None, max_length=100)
     type:                   str | None = Field(default=None, max_length=100)
     submit_type:            str | None = Field(default=None, max_length=100)
