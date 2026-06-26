@@ -13,12 +13,12 @@ from app.config import get_settings
 from app.core.oauth import oauth
 from app.core.rate_limit import limiter
 from app.core.security import (hash_password, verify_password, hash_token,create_access_token, create_refresh_token, decode_token,)
-from app.core.deps import get_current_user, get_current_superuser, get_user_role
+from app.core.deps import get_current_user, get_current_superuser, get_user_role, get_user_primary_ward
 from app.models.user import User, RefreshToken
 from app.models.form import FormStatus
 from app.schemas.auth import ( RegisterRequest, LoginRequest, StaffLoginRequest,TokenResponse, RefreshRequest,)
 from app.schemas.form import FormResponse
-from app.schemas.user import UserResponse
+from app.schemas.user import UserResponse, WardAssignment
 from app.schemas.password_reset import (ForgotPasswordRequest, VerifyOtpRequest, ResetPasswordRequest, MessageResponse,)
 from app.services.google_auth_service import get_or_create_google_user
 from app.services.password_reset_service import request_otp, verify_otp, reset_password
@@ -140,6 +140,10 @@ async def logout(
 async def me(current_user: User = Depends(get_current_user),db: AsyncSession = Depends(get_db),):
     resp = UserResponse.model_validate(current_user)
     resp.role = await get_user_role(current_user, db)
+    if resp.role == "ward_officer":
+        ward = await get_user_primary_ward(current_user, db)
+        if ward:
+            resp.ward = WardAssignment(**ward)
     return resp
 
 

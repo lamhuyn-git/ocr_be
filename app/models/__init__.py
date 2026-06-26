@@ -4,7 +4,7 @@ from app.models.province import Province  # noqa: F401
 from app.models.organization import Organization, OrganizationMember, OrgRole  # noqa: F401
 from app.models.form import (  # noqa: F401
     FormType, FormTemplate, Form, TamtruForm, Evidence, FormResult, ResultConfirm,
-    FormStatus, FormResultStatus, ResultConfirmStatus,
+    FormStatus, FormResultStatus,
 )
 from app.models.citizen import (  # noqa: F401
     Citizen, CitizenRelation,

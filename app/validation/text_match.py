@@ -25,3 +25,22 @@ def norm_distance(a: str, b: str) -> float:
 
 def digits_only(s: str) -> str:
     return re.sub(r"\D", "", s or "")
+
+
+# Tiền tố cấp hành chính (sau fold, giữ dấu): dùng để cắt hậu tố địa chỉ.
+_ADMIN_PREFIXES = ("phường", "xã", "đặc khu", "thành phố", "tỉnh", "quận", "huyện")
+
+
+def street_part(addr: str) -> str:
+    """Giữ phần phân biệt 'số nhà + tên đường', bỏ hậu tố hành chính
+    (phường/xã/quận/thành phố/tỉnh). Hậu tố này luôn trùng trong cùng một phường
+    nên nếu so cả chuỗi sẽ làm loãng fuzzy match, khiến đường khác vẫn bị coi là khớp."""
+    kept: list[str] = []
+    for seg in (addr or "").split(","):
+        seg = seg.strip()
+        if not seg:
+            continue
+        if any(fold(seg).startswith(p) for p in _ADMIN_PREFIXES):
+            break  # gặp đoạn cấp hành chính -> dừng, phần còn lại là phố/số nhà đã giữ
+        kept.append(seg)
+    return ", ".join(kept) if kept else (addr or "")

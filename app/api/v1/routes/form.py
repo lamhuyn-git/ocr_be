@@ -1,53 +1,190 @@
 from __future__ import annotations
-
 import logging
 from datetime import date, timedelta
 from uuid import UUID
-
-from fastapi import (
-    APIRouter, BackgroundTasks, Depends, HTTPException, Query, status,
-)
-from sqlalchemy import select, delete as sa_delete, func, or_, cast, String
+from fastapi import ( APIRouter, BackgroundTasks, Depends, HTTPException, Query, status,)
+from sqlalchemy import select, delete as sa_delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.core.deps import (
-    get_current_user, get_current_superuser, get_user_ward_ids, get_current_staff,
-    assert_form_ward_access,
-)
+from app.core.deps import ( get_current_user, get_user_ward_ids, get_current_staff, assert_form_ward_access,)
 from app.database import get_db
-from app.models import Citizen
-from app.models.form import (
-    FormType, Form as FormModel, TamtruForm, Evidence, FormResult, FormStatus, ResultConfirm, FormResultStatus
-)
+
+from app.models.form import ( FormType, Form as FormModel, TamtruForm, Evidence, FormResult, FormStatus, ResultConfirm, FormResultStatus, DisplayStatus)
 from app.models.organization import Organization
 from app.models.user import User
-from app.schemas.form import (
-    FormCreateResponse, FormResponse, FormDetailResponse,
-    FormCreate, FormDraftCreate, UserFormListItem, UserFormListResponse,
-    UserFormCounts,
-    AdminSaveChangeRequest,
-)
+
+from app.schemas.form import ( FormCreateResponse, FormResponse, FormDetailResponse, FormCreate, FormDraftCreate, UserFormListItem, UserFormListResponse, UserFormCounts, AdminSaveChangeRequest, )
 from app.schemas.form.evidence import FormEvidencesDetail
-from app.schemas.form.form_result import FormResultDetailResponse
+from app.schemas.form.form_result import FormResultDetailResponse, ResultHistoryItem
 from app.schemas.form.form_type import FormTypeResponse
 from app.schemas.form.tamtru_form import TamtruFormDetailResponse
 from app.schemas.organization import OrgDetailResponse
+from app.schemas.user import UserResponse
+
 from app.services import form_workflow as wf
 from app.services import s3_service
 from app.utils.file_utils import get_file_extension
+
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 router = APIRouter(prefix="/form", tags=["Form"])
 
+
 _ALLOWED_IMAGE_EXTS = {"jpg", "jpeg", "png", "bmp", "tiff", "webp"}
-_PROCESSING_STATUSES = (
-    FormStatus.submitted, FormStatus.processing, FormStatus.extracted,
-    FormStatus.under_review, FormStatus.reviewed, FormStatus.overdue,
-)
-_VALID_STATUSES = (FormStatus.returned,)
-_INVALID_STATUSES = (FormStatus.failed, FormStatus.gate_rejected)
+# Gom nhóm stt nội bộ 
+_DRAFT_STATUS = FormStatus.draft
+_RETURN_STATUSES = (FormStatus.returned,)
+
+
+async def _upsert_tamtru(form_id: UUID, spec, db: AsyncSession) -> None:
+    existing = (await db.execute(select(TamtruForm).where(TamtruForm.form_id == form_id))).scalar_one_or_none()
+    target = existing or TamtruForm(form_id=form_id)
+    target.case = spec.case
+    target.type = spec.type
+    target.submit_type = spec.submit_type
+    target.location_register = spec.location_register
+    target.registered_user_cccd = spec.registered_user_cccd
+    target.registered_user_name = spec.registered_user_name
+    target.registered_user_birth = spec.registered_user_birth
+    target.registered_user_gender = spec.registered_user_gender
+    target.registered_user_phone = spec.registered_user_phone
+    target.registered_user_mail = spec.registered_user_mail
+    target.register_content = spec.register_content
+    if existing is None:
+        db.add(target)
+
+
+async def _finalize_and_dispatch(registered_user_id: UUID, form: FormModel, evidence_paths: list[str], db: AsyncSession, background_tasks: BackgroundTasks,) -> None:
+    # Kiểm tra có ảnh
+    if not evidence_paths:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="At least one evidence is required")
+    # Lọc path ảnh CT01
+    ct01_path = next((p for p in evidence_paths if "CT01" in p.upper()), None)
+    if ct01_path is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing CT01 image (evidence path must contain 'CT01')")
+    # Kiểm tra đuôi ảnh hợp lệ
+    for path_url in evidence_paths:
+        ext = get_file_extension(path_url)
+        if ext not in _ALLOWED_IMAGE_EXTS:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported image '.{ext}'")
+    # Kiểm tra org_id + form_type_id tồn tại
+    if form.org_id is None or not await db.get(Organization, form.org_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ward (org_id) not found")
+    if form.form_type_id is None or not await db.get(FormType, form.form_type_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form type not found")
+    # Resolve template active (config_path để chạy pipeline)
+    template = await wf.active_template_for_type_id(form.form_type_id, db)
+
+    form.status = FormStatus.submitted
+    # Chạy ngầm workflow trích xuất
+    background_tasks.add_task(wf.process_form_bg, form.id, ct01_path, template.config_path)
+
+
+def _presign_path(path_url: str | None) -> str | None:
+    if not path_url:
+        return None
+    try:
+        key = s3_service.key_from_path_url(path_url)
+        return s3_service.generate_presigned_get(key)
+    except Exception:
+        return path_url  # fallback: trả path gốc nếu presign thất bại
+
+
+async def _build_form_detail(form: FormModel, db: AsyncSession) -> FormDetailResponse:
+    org       = await db.get(Organization, form.org_id) if form.org_id else None
+    form_type = await db.get(FormType, form.form_type_id) if form.form_type_id else None
+    tamtru    = (await db.execute(select(TamtruForm).where(TamtruForm.form_id == form.id))).scalar_one_or_none()
+    evidences = (await db.execute(select(Evidence).where(Evidence.form_id == form.id))).scalars().all()
+    results   = (await db.execute(select(FormResult).where(FormResult.form_id == form.id).order_by(FormResult.label))).scalars().all()
+
+    # Lấy tất cả confirm_results của mỗi field để làm result_history.
+    result_ids = [r.id for r in results]
+    confirms_by_field: dict[UUID, list[ResultConfirm]] = {}
+    if result_ids:
+        confirms = (await db.execute(
+            select(ResultConfirm)
+            .where(ResultConfirm.checkpoint_id.in_(result_ids))
+            .order_by(ResultConfirm.created_at)
+        )).scalars().all()
+        for c in confirms:
+            confirms_by_field.setdefault(c.checkpoint_id, []).append(c)
+
+    # Lấy thông tin cán bộ đã confirm cho result_history.
+    confirmer_ids = {
+        c.confirmed_by
+        for lst in confirms_by_field.values() for c in lst if c.confirmed_by
+    }
+    user_by_id: dict[UUID, UserResponse] = {}
+    if confirmer_ids:
+        users = (await db.execute(
+            select(User).where(User.id.in_(confirmer_ids))
+        )).scalars().all()
+        user_by_id = {u.id: UserResponse.model_validate(u) for u in users}
+
+    validated_results = []
+    for r in results:
+        item = FormResultDetailResponse.model_validate(r)
+        field_confirms = confirms_by_field.get(r.id, [])
+        # Giá trị field = OCR thô, fallback gợi ý CSDL.
+        field_value = r.raw_value or r.suggested_value
+        # result_history = bản gốc (system) + từng lần confirm.
+        history = [ResultHistoryItem(
+            source="system", status=r.status, value=field_value, created_at=r.created_at,
+        )]
+        for c in field_confirms:
+            history.append(ResultHistoryItem(
+                source="confirm",
+                status=FormResultStatus(c.final_status.value),
+                value=field_value,
+                confirmed_by=user_by_id.get(c.confirmed_by),
+                created_at=c.created_at,
+            ))
+        item.result_history = history
+        # Top-level vẫn phản ánh trạng thái mới nhất (confirm cuối nếu có).
+        if field_confirms:
+            last = field_confirms[-1]
+            item.status = FormResultStatus(last.final_status.value)
+            item.confirmed_by = last.confirmed_by
+            confirmer = user_by_id.get(last.confirmed_by)
+            item.confirmed_by_email = confirmer.email if confirmer else None
+        validated_results.append(item)
+
+    # Lấy evidences group
+    ev_detail = FormEvidencesDetail()
+    for ev in evidences:
+        upper = (ev.path_url or "").upper()
+        if "CT01" in upper:
+            ev_detail.warped_img = _presign_path(ev.warped_img or ev.path_url)
+        elif "RESIDENCE_PROOF" in upper:
+            ev_detail.residence_proof = _presign_path(ev.path_url)
+
+    return FormDetailResponse(
+        id=form.id,
+        form_type_id=form.form_type_id,
+        org_id=form.org_id,
+        submit_by=form.submit_by,
+        status=form.status,
+        notification_on=form.notification_on,
+        review_note=form.review_note,
+        is_gate_rejected=form.is_gate_rejected,
+        created_at=form.created_at,
+        updated_at=form.updated_at,
+        ogr_detailliated=OrgDetailResponse.model_validate(org) if org else None,
+        form_type_detail=FormTypeResponse.model_validate(form_type) if form_type else None,
+        sumited_content=TamtruFormDetailResponse.model_validate(tamtru) if tamtru else None,
+        evidences=ev_detail,
+        validated_results=validated_results,
+    )
+
+
+def _display_status(status: FormStatus) -> DisplayStatus:
+    if status == _DRAFT_STATUS:
+        return DisplayStatus.draft
+    if status in _RETURN_STATUSES:
+        return DisplayStatus.returned
+    return DisplayStatus.submitted  # _UNDER_REVIEW_STATUSES  
 
 
 @router.get("/list", response_model=list[FormResponse], summary="List submitted forms filtered by type and/or organization")
@@ -97,50 +234,6 @@ async def list_forms_by_type(
     return list(rows)
 
 
-async def _upsert_tamtru(form_id: UUID, spec, db: AsyncSession) -> None:
-    existing = (await db.execute(select(TamtruForm).where(TamtruForm.form_id == form_id))).scalar_one_or_none()
-    target = existing or TamtruForm(form_id=form_id)
-    target.case = spec.case
-    target.type = spec.type
-    target.submit_type = spec.submit_type
-    target.location_register = spec.location_register
-    target.registered_user_cccd = spec.registered_user_cccd
-    target.registered_user_name = spec.registered_user_name
-    target.registered_user_birth = spec.registered_user_birth
-    target.registered_user_gender = spec.registered_user_gender
-    target.registered_user_phone = spec.registered_user_phone
-    target.registered_user_mail = spec.registered_user_mail
-    target.register_content = spec.register_content
-    if existing is None:
-        db.add(target)
-
-
-async def _finalize_and_dispatch(registered_user_id: UUID, form: FormModel, evidence_paths: list[str], db: AsyncSession, background_tasks: BackgroundTasks,) -> None:
-    # Kiểm tra có ảnh
-    if not evidence_paths:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="At least one evidence is required")
-    # Lọc path ảnh CT01
-    ct01_path = next((p for p in evidence_paths if "CT01" in p.upper()), None)
-    if ct01_path is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing CT01 image (evidence path must contain 'CT01')")
-    # Kiểm tra đuôi ảnh hợp lệ
-    for path_url in evidence_paths:
-        ext = get_file_extension(path_url)
-        if ext not in _ALLOWED_IMAGE_EXTS:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported image '.{ext}'")
-    # Kiểm tra org_id + form_type_id tồn tại
-    if form.org_id is None or not await db.get(Organization, form.org_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ward (org_id) not found")
-    if form.form_type_id is None or not await db.get(FormType, form.form_type_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form type not found")
-    # Resolve template active (config_path để chạy pipeline)
-    template = await wf.active_template_for_type_id(form.form_type_id, db)
-
-    form.status = FormStatus.submitted
-    # Chạy ngầm workflow trích xuất
-    background_tasks.add_task(wf.process_form_bg, form.id, ct01_path, template.config_path)
-
-
 @router.post("", response_model=FormCreateResponse, status_code=status.HTTP_202_ACCEPTED, summary="Submit a form")
 async def submit_form(
     background_tasks: BackgroundTasks,
@@ -173,94 +266,24 @@ async def submit_form(
     return FormCreateResponse(form_id_db=form.id, status=form.status)
 
 
-def _presign_path(path_url: str | None) -> str | None:
-    if not path_url:
-        return None
-    try:
-        key = s3_service.key_from_path_url(path_url)
-        return s3_service.generate_presigned_get(key)
-    except Exception:
-        return path_url  # fallback: trả path gốc nếu presign thất bại
-
-
-async def _build_form_detail(form: FormModel, db: AsyncSession) -> FormDetailResponse:
-    org       = await db.get(Organization, form.org_id) if form.org_id else None
-    form_type = await db.get(FormType, form.form_type_id) if form.form_type_id else None
-    tamtru    = (await db.execute(select(TamtruForm).where(TamtruForm.form_id == form.id))).scalar_one_or_none()
-    evidences = (await db.execute(select(Evidence).where(Evidence.form_id == form.id))).scalars().all()
-    results   = (await db.execute(select(FormResult).where(FormResult.form_id == form.id).order_by(FormResult.label))).scalars().all()
-
-    # Lấy bản confirm MỚI NHẤT cho mỗi field
-    result_ids = [r.id for r in results]
-    latest_confirm: dict[UUID, ResultConfirm] = {}
-    if result_ids:
-        confirms = (await db.execute(
-            select(ResultConfirm)
-            .where(ResultConfirm.checkpoint_id.in_(result_ids))
-            .order_by(ResultConfirm.created_at)
-        )).scalars().all()
-        for c in confirms:
-            latest_confirm[c.checkpoint_id] = c  # order asc -> ghi đè giữ bản mới nhất
-
-    # Lấy email cán bộ đã chốt (1 query gom cho mọi confirmed_by).
-    confirmer_ids = {c.confirmed_by for c in latest_confirm.values() if c.confirmed_by}
-    email_by_id: dict[UUID, str | None] = {}
-    if confirmer_ids:
-        users = (await db.execute(
-            select(User).where(User.id.in_(confirmer_ids))
-        )).scalars().all()
-        email_by_id = {u.id: u.email for u in users}
-
-    validated_results = []
-    for r in results:
-        item = FormResultDetailResponse.model_validate(r)
-        confirm = latest_confirm.get(r.id)
-        if confirm:
-            item.status = FormResultStatus(confirm.final_status.value)
-            item.confirmed_by = confirm.confirmed_by
-            item.confirmed_by_email = email_by_id.get(confirm.confirmed_by)
-        validated_results.append(item)
-
-    # Build evidences group
-    ev_detail = FormEvidencesDetail()
-    for ev in evidences:
-        upper = (ev.path_url or "").upper()
-        if "CT01" in upper:
-            # Ưu tiên warped_img (đã align); fallback về ảnh gốc nếu workflow chưa chạy xong
-            ev_detail.warped_img = _presign_path(ev.warped_img or ev.path_url)
-        elif "RESIDENCE_PROOF" in upper:
-            ev_detail.residence_proof = _presign_path(ev.path_url)
-
-    return FormDetailResponse(
-        id=form.id,
-        form_type_id=form.form_type_id,
-        org_id=form.org_id,
-        submit_by=form.submit_by,
-        status=form.status,
-        notification_on=form.notification_on,
-        review_note=form.review_note,
-        created_at=form.created_at,
-        updated_at=form.updated_at,
-        ogr_detailliated=OrgDetailResponse.model_validate(org) if org else None,
-        form_type_detail=FormTypeResponse.model_validate(form_type) if form_type else None,
-        sumited_content=TamtruFormDetailResponse.model_validate(tamtru) if tamtru else None,
-        evidences=ev_detail,
-        validated_results=validated_results,
-    )
-
-
-@router.get("/detail", response_model=FormDetailResponse, summary="Get detail form by its ID")
-async def get_detail_forms_by_id(
-    form_id: UUID,
-    current_user: User = Depends(get_current_staff),
-    db: AsyncSession = Depends(get_db),
-):
+@router.get("/detail", response_model=None, summary="Get detail form by its ID")
+async def get_detail_forms_by_id(form_id: UUID, current_user: User = Depends(get_current_staff), db: AsyncSession = Depends(get_db)):
     form = await db.get(FormModel, form_id)
     if not form:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
     await assert_form_ward_access(form, current_user, db)
-    if form.status not in (FormStatus.processing, FormStatus.under_review):
+
+    # Nếu stt là submitted/processing thì chỉ trả status
+    if form.status in (FormStatus.submitted, FormStatus.processing):
+        return FormCreateResponse(form_id_db=form.id, status=form.status)
+
+    # Khi mà form có stt là under_review và do cán bộ KHÁC đang giữ thì chỉ trả status
+    if (form.status == FormStatus.under_review and form.reviewer_id not in (None, current_user.id)):
+        return FormCreateResponse(form_id_db=form.id, status=form.status)
+
+    if form.status != FormStatus.under_review or form.reviewer_id != current_user.id:
         form.status = FormStatus.under_review
+        form.reviewer_id = current_user.id
         await db.commit()
         await db.refresh(form)
     return await _build_form_detail(form, db)
@@ -293,7 +316,7 @@ async def reextract_form(
     return FormCreateResponse(form_id_db=form.id, status=form.status)
 
 
-@router.post("/admin/save_change", status_code=status.HTTP_200_OK, summary="Lưu draft duyệt hồ sơ (admin)")
+@router.post("/save_change", status_code=status.HTTP_200_OK, summary="Lưu draft duyệt hồ sơ (admin)")
 async def admin_save_change(
     body: AdminSaveChangeRequest,
     current_user: User = Depends(get_current_staff),
@@ -302,6 +325,7 @@ async def admin_save_change(
     form = await db.get(FormModel, body.form_id)
     if not form:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
+    
     await assert_form_ward_access(form, current_user, db)
 
     has_change = bool(body.updated_fields)
@@ -309,17 +333,20 @@ async def admin_save_change(
         for item in body.updated_fields:
             result = await db.get(FormResult, item.id)
             if not result or result.form_id != body.form_id:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"FormResult {item.id} not found in form {body.form_id}",
-                )
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"FormResult {item.id} not found in form {body.form_id}")
             db.add(ResultConfirm(
                 checkpoint_id=item.id,
                 confirmed_by=body.confirmed_by,
                 final_status=item.status,
             ))
 
-    form.status = FormStatus.reviewed if has_change else body.from_status
+    if body.from_status == FormStatus.gate_rejected:
+        form.status = FormStatus.reviewed
+    else:
+        form.status = FormStatus.reviewed if has_change else body.from_status
+
+    # Cán bộ thoát khỏi trang soát → nhả lock để người khác vào xử lý được.
+    form.reviewer_id = None
 
     await db.commit()
     return {"form_id": body.form_id, "status": form.status}
@@ -355,10 +382,10 @@ async def save_as_draft(
     return FormCreateResponse(form_id_db=form.id, status=form.status)
 
 
-@router.get("/user-list", response_model=UserFormListResponse, summary="List a citizen's own forms (paginated)")
+@router.get("/user-list", response_model=UserFormListResponse, summary="List a citizen's own forms (paginated)",)
 async def list_user_forms(
     user_id: UUID,
-    group: str | None = Query(default=None, description="Nhóm tab: all | submitted | draft"),
+    group: str | None = Query(default=None),
     page: int = 1,
     page_size: int = 10,
     current_user: User = Depends(get_current_user),
@@ -367,60 +394,86 @@ async def list_user_forms(
     page = max(page, 1)
     page_size = min(max(page_size, 1), 100)
 
-    # Công dân chỉ xem được hồ sơ của chính mình
     if not current_user.is_superuser and user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Forbidden")
 
-    # Thống kê theo nhóm (toàn bộ hồ sơ của user, không phụ thuộc tab/tìm kiếm/trang).
-    status_rows = (await db.execute(
-        select(FormModel.status, func.count())
-        .where(FormModel.submit_by == user_id)
-        .group_by(FormModel.status)
-    )).all()
-    sc = {s: c for s, c in status_rows}
-    total_all = sum(sc.values())
-    draft_n = sc.get(FormStatus.draft, 0)
+    # Count theo status của DB
+    status_rows = (
+        await db.execute(
+            select(FormModel.status, func.count())
+            .where(FormModel.submit_by == user_id)
+            .group_by(FormModel.status)
+        )
+    ).all()
+
+    # Gom về 3 nhóm hiển thị cho FE
+    display_counts = {
+        DisplayStatus.draft: 0,
+        DisplayStatus.submitted: 0,
+        DisplayStatus.returned: 0,
+    }
+
+    for db_status, count in status_rows:
+        display_counts[_display_status(db_status)] += count
+
     counts = UserFormCounts(
-        all=total_all,
-        submitted=total_all - draft_n,
-        draft=draft_n,
-        processing=sum(sc.get(s, 0) for s in _PROCESSING_STATUSES),
-        valid=sum(sc.get(s, 0) for s in _VALID_STATUSES),
-        invalid=sum(sc.get(s, 0) for s in _INVALID_STATUSES),
+        all=sum(display_counts.values()),
+        draft=display_counts[DisplayStatus.draft],
+        submitted=display_counts[DisplayStatus.submitted],
+        returned=display_counts[DisplayStatus.returned],
     )
-
     query = (
-        select(FormModel, FormType.type_name, TamtruForm.location_register)
+        select(
+            FormModel,
+            FormType.type_name,
+            TamtruForm.location_register,
+        )
         .outerjoin(FormType, FormType.id == FormModel.form_type_id)
         .outerjoin(TamtruForm, TamtruForm.form_id == FormModel.id)
         .where(FormModel.submit_by == user_id)
     )
+
     if group == "draft":
         query = query.where(FormModel.status == FormStatus.draft)
+
     elif group == "submitted":
         query = query.where(FormModel.status != FormStatus.draft)
-        
-    total = (await db.execute(
-        select(func.count()).select_from(query.subquery())
-    )).scalar_one()
 
-    rows = (await db.execute(
-        query.order_by(FormModel.created_at.desc())
-        .offset((page - 1) * page_size).limit(page_size)
-    )).all()
+    total = (
+        await db.execute(
+            select(func.count()).select_from(query.subquery())
+        )
+    ).scalar_one()
+
+    rows = (
+        await db.execute(
+            query.order_by(FormModel.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).all()
 
     items = [
         UserFormListItem(
             id=form.id,
-            code=str(form.id)[:6].upper(),  # mã hồ sơ hiển thị
-            status=form.status,
+            code=str(form.id),
+            status=_display_status(form.status),
             form_type_name=type_name,
             location=location,
             created_at=form.created_at,
-            completed_at=form.updated_at if form.status == FormStatus.returned else None,
+            completed_at=(
+                form.updated_at
+                if form.status == FormStatus.returned
+                else None
+            ),
             reject_reason=form.review_note,
             notify_method=form.notification_on,
         )
         for form, type_name, location in rows
     ]
-    return UserFormListResponse(items=items, total=total, counts=counts)
+
+    return UserFormListResponse(
+        items=items,
+        total=total,
+        counts=counts,
+    )

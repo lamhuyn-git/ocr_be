@@ -2,13 +2,16 @@
 from __future__ import annotations
 
 from app.services.form_workflow import _build_review_note, _ocr_text
+from app.services.extraction_error_catalog import EXTRACTION_ERROR_CATALOG, ErrorCode
 from conftest import ocr_result
 
 
 def test_build_review_note_maps_known_codes():
-    note = _build_review_note(["registered_user_missing", "location_not_in_ward"])
-    assert "Chưa khai số định danh người thay đổi cư trú" in note
-    assert "Địa chỉ đăng ký không thuộc phường tiếp nhận" in note
+    # Assert theo message trong catalog (single-source) → bền với thay đổi wording.
+    codes = [ErrorCode.registered_user_missing, ErrorCode.location_not_in_ward]
+    note = _build_review_note(codes)
+    for c in codes:
+        assert EXTRACTION_ERROR_CATALOG[c].message in note
     assert "; " in note
 
 

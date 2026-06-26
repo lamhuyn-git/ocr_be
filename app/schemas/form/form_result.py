@@ -1,10 +1,12 @@
 from __future__ import annotations
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.form import FormResultStatus, ResultConfirmStatus, FormStatus
+from app.models.form import FormResultStatus, FormStatus
+from app.schemas.user import UserResponse
 
 
 class FormResultCreate(BaseModel):
@@ -38,6 +40,14 @@ class FormResultResponse(BaseModel):
     created_at:      datetime
 
 
+class ResultHistoryItem(BaseModel):
+    source:       Literal["system", "confirm"]
+    status:       FormResultStatus
+    value:        str | None = None          # giá trị field tại mốc này (raw OCR / CSDL)
+    confirmed_by: UserResponse | None = None  # cán bộ chốt (system → None)
+    created_at:   datetime
+
+
 class FormResultDetailResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -46,16 +56,19 @@ class FormResultDetailResponse(BaseModel):
     label:           str
     raw_value:       str | None
     suggested_value: str | None
+    db_value:        str | None = None  # giá trị CSDL tham chiếu (kể cả field mềm)
     note:            str | None
     status:          FormResultStatus  # ghi đè bằng final_status nếu cán bộ đã chốt
     created_at:      datetime
     confirmed_by:       UUID | None = None
     confirmed_by_email: str | None = None  # email cán bộ đã chốt (join users)
+    # Lịch sử: bản gốc (system) + tất cả lần confirm, sắp xếp theo thời gian.
+    result_history: list[ResultHistoryItem] = []
 
 
 class AdminSaveChangeFieldItem(BaseModel):
     id:     UUID
-    status: ResultConfirmStatus
+    status: Literal[FormResultStatus.valid, FormResultStatus.invalid]   # chỉ valid | invalid
 
 
 class AdminSaveChangeRequest(BaseModel):

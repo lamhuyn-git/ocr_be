@@ -4,6 +4,15 @@ from datetime import datetime
 from uuid import UUID
 
 
+class WardAssignment(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    org_id: UUID
+    ward_name: str
+    province_id: UUID | None = None
+    province_name: str | None = None
+
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -12,6 +21,7 @@ class UserResponse(BaseModel):
     email: str | None
     full_name: str | None
     role: str | None = None       # super_admin | ward_officer | citizen (set by /me)
+    ward: WardAssignment | None = None   # phường officer phụ trách (chỉ ward_officer), set by /me
     is_active: bool
     is_superuser: bool
     created_at: datetime

@@ -47,7 +47,7 @@ class FormTransitionRequest(BaseModel):
 class UserFormListItem(BaseModel):
     id:             UUID
     code:           str                
-    status:         FormStatus
+    status:         str
     location:       str | None = None  
     created_at:     datetime           
     completed_at:   datetime | None = None  
@@ -56,12 +56,10 @@ class UserFormListItem(BaseModel):
 
 
 class UserFormCounts(BaseModel):
-    all:        int = 0
-    submitted:  int = 0   
-    draft:      int = 0
-    processing: int = 0   
-    valid:      int = 0   
-    invalid:    int = 0  
+    all:       int = 0
+    draft:     int = 0
+    submitted: int = 0   
+    returned:  int = 0   
 
 
 class UserFormListResponse(BaseModel):
@@ -95,6 +93,7 @@ class FormDetailResponse(FormResponse):
     submit_by:         UUID | None
     notification_on:   str | None
     review_note:       str | None
+    is_gate_rejected:  bool = False  # hồ sơ đang bị chặn ở cổng (UI chọn popup gate-reject)
     sumited_content:   TamtruFormDetailResponse | None
     evidences:         FormEvidencesDetail = FormEvidencesDetail()
     validated_results: list[FormResultDetailResponse] = []

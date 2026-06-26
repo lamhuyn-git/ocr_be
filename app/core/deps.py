@@ -8,21 +8,23 @@ import jwt
 
 from app.database import get_db
 from app.models.user import User
-from app.models.organization import OrganizationMember, OrgRole
+from app.models.organization import Organization, OrganizationMember, OrgRole
+from app.models.province import Province
 from app.core.security import decode_token
+
 
 bearer = HTTPBearer()
 
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer),
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid or expired token",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+async def get_user_role(user: User, db: AsyncSession) -> str:
+    if user.is_superuser:
+        return "super_admin"
+    ward_ids = await get_user_ward_ids(user, db)
+    return "ward_officer" if ward_ids else "citizen"
+
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer), db: AsyncSession = Depends(get_db)) -> User:
+    credentials_exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token", headers={"WWW-Authenticate": "Bearer"},)
     try:
         payload = decode_token(credentials.credentials)
         if payload.get("type") != "access":
@@ -45,44 +47,50 @@ async def get_current_superuser(current_user: User = Depends(get_current_user)) 
     return current_user
 
 
-async def get_current_staff(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    """Allow super_admin OR any ward_officer (staff of any ward). Not ward-scoped —
-    use require_ward_role(...) when the action is tied to a specific org_id."""
+async def get_current_staff(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> User:
     if current_user.is_superuser:
         return current_user
     has_membership = (
-        await db.execute(
-            select(OrganizationMember.id).where(OrganizationMember.user_id == current_user.id).limit(1)
-        )
+        await db.execute(select(OrganizationMember.id).where(OrganizationMember.user_id == current_user.id).limit(1))
     ).scalar_one_or_none()
     if not has_membership:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
     return current_user
 
 
-async def get_user_role(user: User, db: AsyncSession) -> str:
-    if user.is_superuser:
-        return "super_admin"
-    ward_ids = await get_user_ward_ids(user, db)
-    return "ward_officer" if ward_ids else "citizen"
-
-
+# Lấy phường của staff
 async def get_user_ward_ids(user: User, db: AsyncSession) -> list[UUID]:
-    """Ward (organization) ids the user is a staff member of."""
     rows = (
-        await db.execute(
-            select(OrganizationMember.org_id).where(OrganizationMember.user_id == user.id)
-        )
+        await db.execute(select(OrganizationMember.org_id).where(OrganizationMember.user_id == user.id))
     ).scalars().all()
     return list(rows)
 
 
-async def get_user_membership(
-    org_id: UUID, user: User, db: AsyncSession
-) -> OrganizationMember | None:
+# Phường primary của officer (membership sớm nhất) + tên tỉnh, dùng prefill form.
+async def get_user_primary_ward(user: User, db: AsyncSession) -> dict | None:
+    row = (
+        await db.execute(
+            select(Organization, Province.name)
+            .join(OrganizationMember, OrganizationMember.org_id == Organization.id)
+            .outerjoin(Province, Province.id == Organization.province_id)
+            .where(OrganizationMember.user_id == user.id)
+            .order_by(OrganizationMember.created_at)
+            .limit(1)
+        )
+    ).first()
+    if not row:
+        return None
+    org, province_name = row
+    return {
+        "org_id": org.id,
+        "ward_name": org.name,
+        "province_id": org.province_id,
+        "province_name": province_name,
+    }
+
+
+# Check user có là thành viên của ward (org) không
+async def get_user_membership(org_id: UUID, user: User, db: AsyncSession) -> OrganizationMember | None:
     return (
         await db.execute(
             select(OrganizationMember).where(
@@ -94,9 +102,6 @@ async def get_user_membership(
 
 
 def require_ward_role(*roles: OrgRole):
-    """Dependency factory — super_admin bypasses; otherwise user must hold one of
-    the given roles in the ward (`org_id` path/query param).
-    Returns the membership, or None when the caller is a super_admin."""
     async def check(
         org_id: UUID,
         current_user: User = Depends(get_current_user),
@@ -114,6 +119,7 @@ def require_ward_role(*roles: OrgRole):
     return check
 
 
+# Chỉ super_admin, user upload form đó và cán bộ phường tiếp nhận đơn là được xem form
 async def assert_form_ward_access(form, current_user: User, db: AsyncSession) -> None:
     if current_user.is_superuser:
         return

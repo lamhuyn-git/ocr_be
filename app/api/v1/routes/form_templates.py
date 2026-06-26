@@ -131,6 +131,7 @@ async def delete_template(
     await db.flush()
     return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "Deleted template successfully"})
 
+
 @router.get("/download")
 async def download_template( form_name : str, _: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),):  
     print("form_name =", form_name)
@@ -149,10 +150,7 @@ async def download_template( form_name : str, _: User = Depends(get_current_user
 
     key = s3_service.key_from_path_url(template_url)
 
-    download_url = s3_service.generate_presigned_download(
-        key=key,
-        filename="Mau_CT01.docx",
-    )
+    download_url = s3_service.generate_presigned_download(key=key,filename="Mau_CT01.docx",)
 
     return {
         "download_url": download_url
