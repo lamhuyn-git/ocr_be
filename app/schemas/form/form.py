@@ -1,12 +1,13 @@
 """Schema cho bảng gốc Form: list item, detail (gộp subtype/evidences/results), responses."""
 from __future__ import annotations
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.form import FormStatus
+from app.models.residence import TempResidenceStatus
 from app.schemas.form.evidence import EvidenceInput, FormEvidencesDetail
 from app.schemas.form.form_result import FormResultDetailResponse
 from app.schemas.form.tamtru_form import TamtruFormInput, TamtruFormDetailResponse
@@ -44,15 +45,25 @@ class FormTransitionRequest(BaseModel):
     note: str | None = Field(default=None, max_length=4000)
 
 
+class FormReturnRequest(BaseModel):
+    form_id:  UUID
+    outcome:  TempResidenceStatus
+    note:     str | None = Field(default=None, max_length=4000)
+    dia_chi:  str | None = None
+    tu_ngay:  date | None = None
+    den_ngay: date | None = None
+
+
 class UserFormListItem(BaseModel):
     id:             UUID
-    code:           str                
+    code:           str
     status:         str
-    location:       str | None = None  
-    created_at:     datetime           
-    completed_at:   datetime | None = None  
-    reject_reason:  str | None = None   
-    notify_method:  str | None = None   
+    outcome:        str | None = None
+    location:       str | None = None
+    created_at:     datetime
+    completed_at:   datetime | None = None
+    reject_reason:  str | None = None
+    notify_method:  str | None = None
 
 
 class UserFormCounts(BaseModel):
@@ -94,6 +105,10 @@ class FormDetailResponse(FormResponse):
     notification_on:   str | None
     review_note:       str | None
     is_gate_rejected:  bool = False  # hồ sơ đang bị chặn ở cổng (UI chọn popup gate-reject)
+    outcome:           str | None = None          # valid | require_adjust | None (chưa trả)
+    returned_at:       datetime | None = None      # thời điểm trả kết quả
+    returned_by_name:  str | None = None           # cán bộ xác nhận trả kết quả
+    returned_by_email: str | None = None
     sumited_content:   TamtruFormDetailResponse | None
     evidences:         FormEvidencesDetail = FormEvidencesDetail()
     validated_results: list[FormResultDetailResponse] = []
@@ -120,6 +135,9 @@ class UserFormDetailResponse(BaseModel):
     form_type_detail: FormTypeResponse | None = None
     sumited_content:  TamtruFormDetailResponse | None = None
     evidences:        FormEvidencesDetail = FormEvidencesDetail()
+    outcome:          str | None = None
+    result_note:      str | None = None
+    returned_at:      datetime | None = None
 
 
 UserFormDetailResponse.model_rebuild()

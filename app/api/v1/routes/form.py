@@ -13,8 +13,10 @@ from app.database import get_db
 from app.models.form import ( FormType, Form as FormModel, TamtruForm, Evidence, FormResult, FormStatus, ResultConfirm, FormResultStatus, DisplayStatus)
 from app.models.organization import Organization
 from app.models.user import User
+from app.models.citizen import Citizen, ResidenceStatus
+from app.models.residence import TemporaryResidence, TempResidenceStatus
 
-from app.schemas.form import ( FormCreateResponse, FormResponse, FormDetailResponse, FormCreate, FormDraftCreate, UserFormListItem, UserFormListResponse, UserFormCounts, UserFormDetailResponse, AdminSaveChangeRequest, )
+from app.schemas.form import ( FormCreateResponse, FormResponse, FormDetailResponse, FormCreate, FormDraftCreate, FormReturnRequest, UserFormListItem, UserFormListResponse, UserFormCounts, UserFormDetailResponse, AdminSaveChangeRequest, )
 from app.schemas.form.evidence import FormEvidencesDetail
 from app.schemas.form.form_result import FormResultDetailResponse, ResultHistoryItem
 from app.schemas.form.form_type import FormTypeResponse
@@ -24,8 +26,9 @@ from app.schemas.user import UserResponse
 
 from app.services import form_workflow as wf
 from app.services import s3_service
-from app.services.notification_service import notify_form_submitted
+from app.services.notification_service import notify_form_submitted, notify_form_returned
 from app.utils.file_utils import get_file_extension
+from app.validation import field_rules as FR
 
 
 logger = logging.getLogger(__name__)
@@ -162,6 +165,21 @@ async def _build_form_detail(form: FormModel, db: AsyncSession) -> FormDetailRes
         elif "RESIDENCE_PROOF" in upper:
             ev_detail.residence_proof = _presign_path(ev.path_url)
 
+    # Thông tin xác nhận trả kết quả (chỉ khi đã trả).
+    outcome = None
+    returned_at = None
+    returned_by_name = None
+    returned_by_email = None
+    if form.status == FormStatus.returned:
+        tr = (await db.execute(select(TemporaryResidence).where(TemporaryResidence.form_id == form.id))).scalars().first()
+        outcome = TempResidenceStatus.valid.value if tr else TempResidenceStatus.require_adjust.value
+        returned_at = form.updated_at
+        if form.reviewer_id:
+            returner = await db.get(User, form.reviewer_id)
+            if returner:
+                returned_by_name = returner.full_name
+                returned_by_email = returner.email
+
     return FormDetailResponse(
         id=form.id,
         form_type_id=form.form_type_id,
@@ -171,6 +189,10 @@ async def _build_form_detail(form: FormModel, db: AsyncSession) -> FormDetailRes
         notification_on=form.notification_on,
         review_note=form.review_note,
         is_gate_rejected=form.is_gate_rejected,
+        outcome=outcome,
+        returned_at=returned_at,
+        returned_by_name=returned_by_name,
+        returned_by_email=returned_by_email,
         created_at=form.created_at,
         updated_at=form.updated_at,
         ogr_detailliated=OrgDetailResponse.model_validate(org) if org else None,
@@ -196,6 +218,12 @@ async def _build_user_form_detail(form: FormModel, db: AsyncSession) -> UserForm
         elif "RESIDENCE_PROOF" in upper:
             ev_detail.residence_proof = _presign_path(ev.path_url)
 
+    is_returned = form.status == FormStatus.returned
+    outcome = None
+    if is_returned:
+        tr = (await db.execute(select(TemporaryResidence).where(TemporaryResidence.form_id == form.id))).scalars().first()
+        outcome = TempResidenceStatus.valid.value if tr else TempResidenceStatus.require_adjust.value
+
     return UserFormDetailResponse(
         id=form.id,
         form_type_id=form.form_type_id,
@@ -208,6 +236,9 @@ async def _build_user_form_detail(form: FormModel, db: AsyncSession) -> UserForm
         form_type_detail=FormTypeResponse.model_validate(form_type) if form_type else None,
         sumited_content=TamtruFormDetailResponse.model_validate(tamtru) if tamtru else None,
         evidences=ev_detail,
+        outcome=outcome,
+        result_note=form.review_note if is_returned else None,
+        returned_at=form.updated_at if is_returned else None,
     )
 
 
@@ -314,7 +345,10 @@ async def get_detail_forms_by_id(form_id: UUID, current_user: User = Depends(get
     if (form.status == FormStatus.under_review and form.reviewer_id not in (None, current_user.id)):
         return FormCreateResponse(form_id_db=form.id, status=form.status)
 
-    if form.status != FormStatus.under_review or form.reviewer_id != current_user.id:
+    # Hồ sơ đã trả kết quả: xem chỉ đọc, giữ nguyên 'returned', không khóa under_review.
+    if form.status != FormStatus.returned and (
+        form.status != FormStatus.under_review or form.reviewer_id != current_user.id
+    ):
         form.status = FormStatus.under_review
         form.reviewer_id = current_user.id
         await db.commit()
@@ -383,6 +417,69 @@ async def admin_save_change(
 
     await db.commit()
     return {"form_id": body.form_id, "status": form.status}
+
+
+async def _read_cccd_chu_ho(form_id: UUID, db: AsyncSession) -> str | None:
+    r = (await db.execute(
+        select(FormResult).where(FormResult.form_id == form_id, FormResult.label == FR.KEY_CCCD_CHU_HO)
+    )).scalar_one_or_none()
+    return (r.raw_value or r.suggested_value) if r else None
+
+
+async def _apply_valid_verdict(form: FormModel, req: FormReturnRequest, tamtru: TamtruForm | None, db: AsyncSession) -> None:
+    citizen = None
+    if tamtru and tamtru.registered_user_cccd:
+        citizen = (await db.execute(
+            select(Citizen).where(Citizen.so_dinh_danh == tamtru.registered_user_cccd)
+        )).scalar_one_or_none()
+
+    dia_chi = req.dia_chi or (tamtru.location_register if tamtru else None)
+    cccd_chu_ho = await _read_cccd_chu_ho(form.id, db)
+
+    db.add(TemporaryResidence(
+        citizen_id=citizen.id if citizen else None,
+        org_id=form.org_id,
+        form_id=form.id,
+        dia_chi=dia_chi or "",
+        status=TempResidenceStatus.valid,
+        tu_ngay=req.tu_ngay,
+        den_ngay=req.den_ngay or (tamtru.residence_until if tamtru else None),
+    ))
+
+    if citizen:
+        if dia_chi:
+            citizen.noi_tam_tru = dia_chi
+            citizen.noi_o_hien_tai = dia_chi
+        citizen.tinh_trang_cu_tru = ResidenceStatus.tam_tru
+        if cccd_chu_ho:
+            citizen.ma_ho = cccd_chu_ho
+
+
+@router.post("/return", response_model=FormCreateResponse, status_code=status.HTTP_200_OK, summary="Cán bộ trả kết quả cho người dân")
+async def return_form_result(
+    body: FormReturnRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    form = await db.get(FormModel, body.form_id)
+    if not form:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
+    await assert_form_ward_access(form, current_user, db)
+    wf.assert_can_transition(form, FormStatus.returned)
+
+    if body.outcome == TempResidenceStatus.valid:
+        tamtru = (await db.execute(select(TamtruForm).where(TamtruForm.form_id == form.id))).scalar_one_or_none()
+        await _apply_valid_verdict(form, body, tamtru, db)
+
+    form.status = FormStatus.returned
+    form.review_note = body.note
+    form.reviewer_id = current_user.id  # cán bộ xác nhận trả kết quả
+    await db.commit()
+    await db.refresh(form)
+
+    background_tasks.add_task(notify_form_returned, form.id)
+    return FormCreateResponse(form_id_db=form.id, status=form.status)
 
 
 @router.post("/draft", response_model=FormCreateResponse, status_code=status.HTTP_200_OK, summary="Lưu draft hồ sơ của citizen")
@@ -455,11 +552,22 @@ async def list_user_forms(
         submitted=display_counts[DisplayStatus.submitted],
         returned=display_counts[DisplayStatus.returned],
     )
+    has_valid_residence = (
+        select(TemporaryResidence.id)
+        .where(
+            TemporaryResidence.form_id == FormModel.id,
+            TemporaryResidence.status == TempResidenceStatus.valid,
+        )
+        .exists()
+        .label("has_valid_residence")
+    )
+
     query = (
         select(
             FormModel,
             FormType.type_name,
             TamtruForm.location_register,
+            has_valid_residence,
         )
         .outerjoin(FormType, FormType.id == FormModel.form_type_id)
         .outerjoin(TamtruForm, TamtruForm.form_id == FormModel.id)
@@ -491,6 +599,15 @@ async def list_user_forms(
             id=form.id,
             code=str(form.id),
             status=_display_status(form.status),
+            outcome=(
+                None
+                if form.status != FormStatus.returned
+                else (
+                    TempResidenceStatus.valid.value
+                    if has_valid
+                    else TempResidenceStatus.require_adjust.value
+                )
+            ),
             form_type_name=type_name,
             location=location,
             created_at=form.created_at,
@@ -502,7 +619,7 @@ async def list_user_forms(
             reject_reason=form.review_note,
             notify_method=form.notification_on,
         )
-        for form, type_name, location in rows
+        for form, type_name, location, has_valid in rows
     ]
 
     return UserFormListResponse(

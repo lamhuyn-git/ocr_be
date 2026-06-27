@@ -16,7 +16,7 @@ from app.schemas.form.form_result import (  # noqa: F401
     AdminSaveChangeRequest, AdminSaveChangeFieldItem,
 )
 from app.schemas.form.form import (  # noqa: F401
-    FormCreate, FormDraftCreate, FormDraftUpdate, FormTransitionRequest,
+    FormCreate, FormDraftCreate, FormDraftUpdate, FormTransitionRequest, FormReturnRequest,
     FormCreateResponse, FormResponse, FormDetailResponse, FormList, FormExtractResponse,
     UserFormListItem, UserFormListResponse, UserFormCounts, UserFormDetailResponse,
 )
@@ -28,7 +28,7 @@ __all__ = [
     "TamtruFormInput", "TamtruFormCreate", "TamtruFormUpdate", "TamtruFormResponse",
     "FormResultCreate", "FormResultUpdate", "FormResultResponse", "FormResultConfirmRequest",
     "AdminSaveChangeRequest", "AdminSaveChangeFieldItem",
-    "FormCreate", "FormDraftCreate", "FormDraftUpdate", "FormTransitionRequest",
+    "FormCreate", "FormDraftCreate", "FormDraftUpdate", "FormTransitionRequest", "FormReturnRequest",
     "FormCreateResponse", "FormResponse", "FormDetailResponse", "FormList", "FormExtractResponse",
     "UserFormListItem", "UserFormListResponse", "UserFormCounts", "UserFormDetailResponse",
 ]

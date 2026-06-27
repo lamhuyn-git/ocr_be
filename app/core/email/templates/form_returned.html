@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ app_name }} — Kết quả hồ sơ</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f3f4f6;padding:24px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+          <tr>
+            <td align="center" style="background-color:{{ brand_color }};padding:24px;">
+              {% if brand_logo_url %}
+              <img src="{{ brand_logo_url }}" alt="{{ app_name }}" height="40" style="display:block;border:0;">
+              {% else %}
+              <span style="color:#ffffff;font-size:22px;font-weight:bold;">{{ app_name }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 32px 16px 32px;color:#111827;">
+              <h1 style="margin:0 0 12px 0;font-size:20px;color:#111827;">Kết quả xử lý hồ sơ</h1>
+              <p style="margin:0 0 16px 0;font-size:14px;line-height:1.6;color:#374151;">
+                Hồ sơ <strong>{{ form_code }}</strong> của bạn đã được xử lý trên hệ thống <strong>{{ app_name }}</strong>.
+              </p>
+              <div style="margin:0 0 20px 0;text-align:center;">
+                <span style="display:inline-block;font-size:18px;font-weight:bold;color:{{ brand_color }};background-color:#f3f4f6;border-radius:8px;padding:12px 24px;">{{ outcome_label }}</span>
+              </div>
+              {% if note %}
+              <p style="margin:0 0 12px 0;font-size:13px;line-height:1.6;color:#374151;">
+                <strong>Ghi chú:</strong> {{ note }}
+              </p>
+              {% endif %}
+              {% if ward_name %}
+              <p style="margin:0;font-size:13px;line-height:1.6;color:#6b7280;">
+                Vui lòng đến <strong>{{ ward_name }}</strong> để nhận kết quả.
+              </p>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px 28px 32px;border-top:1px solid #e5e7eb;">
+              <p style="margin:0;font-size:12px;line-height:1.6;color:#9ca3af;">
+                {% if support_email %}Cần hỗ trợ? Liên hệ <a href="mailto:{{ support_email }}" style="color:{{ brand_color }};">{{ support_email }}</a>.<br>{% endif %}
+                © {{ app_name }}. Email tự động, vui lòng không trả lời.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

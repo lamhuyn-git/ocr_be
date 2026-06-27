@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 ALLOWED_TRANSITIONS: dict[FormStatus, set[FormStatus]] = {
     FormStatus.under_review: {FormStatus.extracted},                  # mở hồ sơ để xem xét (khóa)
     FormStatus.reviewed:     {FormStatus.under_review},               # xong bước kiểm tra/lưu
-    FormStatus.returned:     {FormStatus.reviewed},                   # trả kết quả (verdict lưu ở temporary_residences)
+    FormStatus.returned:     {FormStatus.reviewed, FormStatus.under_review},  # trả kết quả (verdict lưu ở temporary_residences)
 }
 
 # Draft, Overdue, và Gate-rejected không thể thành overdue. Stt còn lại đều được.

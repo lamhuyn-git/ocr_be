@@ -6,7 +6,7 @@ from app.config import get_settings
 from app.core.email.base import EmailSender, EmailSendError
 from app.core.email.console_sender import ConsoleEmailSender
 from app.core.email.smtp_sender import SmtpEmailSender
-from app.core.email.renderer import render_otp_email
+from app.core.email.renderer import render_otp_email, render_form_returned_email
 
 logger = logging.getLogger(__name__)
 
@@ -24,4 +24,4 @@ def get_email_sender() -> EmailSender:
     return SmtpEmailSender()
 
 
-__all__ = ["get_email_sender", "render_otp_email", "EmailSender", "EmailSendError"]
+__all__ = ["get_email_sender", "render_otp_email", "render_form_returned_email", "EmailSender", "EmailSendError"]
