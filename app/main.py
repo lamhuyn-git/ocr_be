@@ -14,8 +14,8 @@ from app.database import engine, Base
 from app.core.rate_limit import limiter
 from app.api.v1.routes import api_router
 
-# Import all models so Base.metadata knows about every table
-from app.models import user, organization, province, form  # noqa: F401
+
+from app.models import user, organization, province, form, notification
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,8 +24,6 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Schema is owned by Alembic migrations (do NOT use create_all — it conflicts with
-    # migrations: it creates missing tables but never alters existing ones).
     os.makedirs(settings.upload_dir, exist_ok=True)
     yield
     await engine.dispose()
@@ -38,7 +36,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Rate limit (slowapi) — dùng cho các endpoint nhạy cảm (vd: forgot/reset password).
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

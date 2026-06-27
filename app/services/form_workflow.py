@@ -21,7 +21,8 @@ from app.services import s3_service
 from app.validation import compute_field_statuses
 from app.validation import field_rules as FR
 from app.validation.text_match import digits_only, norm_distance, street_part
-from app.validation.thresholds import LIST_MATCH_DIST_MAX, NAME_MATCH_DIST_MAX
+from app.validation.thresholds import LIST_MATCH_DIST_MAX, NAME_MATCH_DIST_MAX, CCCD_OCR_TYPO_MAX
+from rapidfuzz.distance import Levenshtein
 from app.services.extraction_error_catalog import EXTRACTION_ERROR_CATALOG, ErrorCode
 
 logger = logging.getLogger(__name__)
@@ -76,6 +77,7 @@ def _bbox_to_xywh(bbox: list) -> list[float] | None:
 
 def extracted_fields_to_results(form_id: UUID, result: dict[str, Any], verdicts: dict[str, Any] | None = None,) -> list[FormResult]:
     from app.validation.db_adapter import verdict_to_status
+    from app.validation.field_comments import comment_for
     fields = result.get("extracted_fields") or {}
     verdicts = verdicts or {}
     rows: list[FormResult] = []
@@ -92,7 +94,7 @@ def extracted_fields_to_results(form_id: UUID, result: dict[str, Any], verdicts:
         if verdict is not None:
             suggested = verdict.suggestion if verdict.suggestion is not None else ocr_text
             db_value = verdict.db_value  # giá trị CSDL thật (có cả ở field mềm)
-            note = verdict.reason
+            note = comment_for(label, verdict.code) or verdict.reason
             row_status = verdict_to_status(verdict.status)
         else:
             suggested = ocr_text
@@ -186,28 +188,35 @@ def _ocr_text(result: dict[str, Any], label: str) -> str:
     return str(f) if f is not None else ""
 
 
-async def check_same_person(result: dict[str, Any], db: AsyncSession, form_id: UUID) -> tuple[bool, str]:
+async def check_same_person(result: dict[str, Any], db: AsyncSession, form_id: UUID) -> tuple[bool, list[ErrorCode]]:
     tamtru = (await db.execute(
         select(TamtruForm).where(TamtruForm.form_id == form_id)
     )).scalar_one_or_none()
     if not tamtru:
-        return True, ""
+        return True, []
 
     online_cccd = digits_only(tamtru.registered_user_cccd or "")
     ct01_cccd = digits_only(_ocr_text(result, FR.KEY_CCCD_NGUOI_DK))
+    ct01_name = _ocr_text(result, "ho_chu_dem_va_ten")
+    name_ok = bool(
+        tamtru.registered_user_name and ct01_name
+        and norm_distance(ct01_name, tamtru.registered_user_name) <= NAME_MATCH_DIST_MAX
+    )
 
     # CCCD trên CT01 đọc đủ 12 số → so trực tiếp.
     if len(ct01_cccd) == 12:
         if online_cccd and ct01_cccd == online_cccd:
-            return True, ""
-        return False, EXTRACTION_ERROR_CATALOG[ErrorCode.ct01_cccd_mismatch].message
+            return True, []
+        # CCCD lệch ÍT ký tự (nghi OCR nhầm) NHƯNG họ tên khớp → không chặn cổng,
+        # chỉ ghi chú để cán bộ tự đối chiếu (tránh false-reject do OCR đọc sai).
+        if name_ok and Levenshtein.distance(ct01_cccd, online_cccd) <= CCCD_OCR_TYPO_MAX:
+            return True, [ErrorCode.ct01_cccd_minor_name_ok]
+        return False, [ErrorCode.ct01_cccd_mismatch]
 
     # CCCD CT01 không đọc được → fallback so họ tên (yếu, chỉ khi bất khả kháng).
-    ct01_name = _ocr_text(result, "ho_chu_dem_va_ten")
-    if tamtru.registered_user_name and ct01_name:
-        if norm_distance(ct01_name, tamtru.registered_user_name) <= NAME_MATCH_DIST_MAX:
-            return True, ""
-    return False, EXTRACTION_ERROR_CATALOG[ErrorCode.ct01_person_unverified].message
+    if name_ok:
+        return True, []
+    return False, [ErrorCode.ct01_person_unverified]
 
 
 def _build_review_note(issues: list[str]) -> str:
@@ -272,9 +281,9 @@ async def process_form_bg(form_db_id: UUID, image_path: str, config_path: str) -
 
     # Kiểm tra CT01 và bản khai online có cùng một người không.
     async with AsyncSessionLocal() as db:
-        is_same, reason = await check_same_person(result, db, form_db_id)
+        is_same, same_notes = await check_same_person(result, db, form_db_id)
         if not is_same:
-            logger.warning("[BG-OCR] same-person gate fail form=%s: %s", form_db_id, reason)
+            logger.warning("[BG-OCR] same-person gate fail form=%s: %s", form_db_id, same_notes)
             form = await db.get(Form, form_db_id, with_for_update=True)
             if form and form.status == FormStatus.processing:
                 # CT01 không phải người thay đổi cư trú -> chặn cổng luôn.
@@ -283,11 +292,13 @@ async def process_form_bg(form_db_id: UUID, image_path: str, config_path: str) -
                 await db.execute(sa_delete(FormResult).where(FormResult.form_id == form.id))
                 form.status = FormStatus.gate_rejected
                 form.is_gate_rejected = True
-                form.review_note = reason
+                form.review_note = _build_review_note(same_notes)
                 await db.commit()
             else:
                 await db.rollback()
             return
+        # Qua cổng nhưng CCCD lệch nhẹ (tên khớp) -> mang ghi chú mềm sang tầng 2.
+        soft_notes += same_notes
 
     # Tầng 2: đối chiếu field vs CSDL → lưu form_result + status → extracted
     async with AsyncSessionLocal() as db:

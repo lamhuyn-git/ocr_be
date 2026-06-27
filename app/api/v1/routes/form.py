@@ -14,7 +14,7 @@ from app.models.form import ( FormType, Form as FormModel, TamtruForm, Evidence,
 from app.models.organization import Organization
 from app.models.user import User
 
-from app.schemas.form import ( FormCreateResponse, FormResponse, FormDetailResponse, FormCreate, FormDraftCreate, UserFormListItem, UserFormListResponse, UserFormCounts, AdminSaveChangeRequest, )
+from app.schemas.form import ( FormCreateResponse, FormResponse, FormDetailResponse, FormCreate, FormDraftCreate, UserFormListItem, UserFormListResponse, UserFormCounts, UserFormDetailResponse, AdminSaveChangeRequest, )
 from app.schemas.form.evidence import FormEvidencesDetail
 from app.schemas.form.form_result import FormResultDetailResponse, ResultHistoryItem
 from app.schemas.form.form_type import FormTypeResponse
@@ -24,6 +24,7 @@ from app.schemas.user import UserResponse
 
 from app.services import form_workflow as wf
 from app.services import s3_service
+from app.services.notification_service import notify_form_submitted
 from app.utils.file_utils import get_file_extension
 
 
@@ -52,6 +53,7 @@ async def _upsert_tamtru(form_id: UUID, spec, db: AsyncSession) -> None:
     target.registered_user_phone = spec.registered_user_phone
     target.registered_user_mail = spec.registered_user_mail
     target.register_content = spec.register_content
+    target.residence_until = spec.residence_until
     if existing is None:
         db.add(target)
 
@@ -179,6 +181,36 @@ async def _build_form_detail(form: FormModel, db: AsyncSession) -> FormDetailRes
     )
 
 
+async def _build_user_form_detail(form: FormModel, db: AsyncSession) -> UserFormDetailResponse:
+    org       = await db.get(Organization, form.org_id) if form.org_id else None
+    form_type = await db.get(FormType, form.form_type_id) if form.form_type_id else None
+    tamtru    = (await db.execute(select(TamtruForm).where(TamtruForm.form_id == form.id))).scalar_one_or_none()
+    evidences = (await db.execute(select(Evidence).where(Evidence.form_id == form.id))).scalars().all()
+
+    # Trả ảnh GỐC user upload (path_url), không dùng warped_img đã nắn của pipeline duyệt.
+    ev_detail = FormEvidencesDetail()
+    for ev in evidences:
+        upper = (ev.path_url or "").upper()
+        if "CT01" in upper:
+            ev_detail.warped_img = _presign_path(ev.path_url)
+        elif "RESIDENCE_PROOF" in upper:
+            ev_detail.residence_proof = _presign_path(ev.path_url)
+
+    return UserFormDetailResponse(
+        id=form.id,
+        form_type_id=form.form_type_id,
+        org_id=form.org_id,
+        status=_display_status(form.status),
+        notification_on=form.notification_on,
+        created_at=form.created_at,
+        updated_at=form.updated_at,
+        ogr_detailliated=OrgDetailResponse.model_validate(org) if org else None,
+        form_type_detail=FormTypeResponse.model_validate(form_type) if form_type else None,
+        sumited_content=TamtruFormDetailResponse.model_validate(tamtru) if tamtru else None,
+        evidences=ev_detail,
+    )
+
+
 def _display_status(status: FormStatus) -> DisplayStatus:
     if status == _DRAFT_STATUS:
         return DisplayStatus.draft
@@ -263,6 +295,7 @@ async def submit_form(
     await _finalize_and_dispatch(formCreate.form_spec.registered_user_cccd, form, [ev.path_url for ev in formCreate.evidences], db, background_tasks)
     await db.flush()
     await db.refresh(form)
+    background_tasks.add_task(notify_form_submitted, form.id) 
     return FormCreateResponse(form_id_db=form.id, status=form.status)
 
 
@@ -477,3 +510,18 @@ async def list_user_forms(
         total=total,
         counts=counts,
     )
+
+
+@router.get("/user/detail", response_model=UserFormDetailResponse, summary="Citizen xem chi tiết hồ sơ của chính mình")
+async def get_user_form_detail(
+    form_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    form = await db.get(FormModel, form_id)
+    if not form:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
+    # Chỉ chủ hồ sơ (hoặc superuser) được xem.
+    if not current_user.is_superuser and form.submit_by != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    return await _build_user_form_detail(form, db)

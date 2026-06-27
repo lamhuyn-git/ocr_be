@@ -29,6 +29,7 @@ class ErrorCode(str, enum.Enum):
     location_not_in_ward      = "location_not_in_ward"
     # same_person
     ct01_cccd_mismatch        = "ct01_cccd_mismatch"
+    ct01_cccd_minor_name_ok   = "ct01_cccd_minor_name_ok"
     ct01_person_unverified    = "ct01_person_unverified"
     # field_match
     low_confidence            = "low_confidence"
@@ -64,15 +65,16 @@ class ExtractionError:
 _ERRORS: list[ExtractionError] = [
 
     ExtractionError(ErrorCode.registered_user_missing, ErrorLayer.pre_extract, Severity.hard, "form", "Chưa khai số định danh người thay đổi cư trú. Vui lòng kiểm tra lại thông tin điền trên đơn đăng ký tạm trú online.", "tamtru.registered_user_cccd trống"),
-    ExtractionError(ErrorCode.registered_user_not_found, ErrorLayer.pre_extract, Severity.hard, "form", "Người/Hộ yêu cầu thay đổi cư trú không có trong CSDL (CCCD khai online không tồn tại trong bảng thông tin người dân).", "CCCD khai online không tồn tại trong bảng citizens"),
-    ExtractionError(ErrorCode.registered_user_name, ErrorLayer.pre_extract, Severity.hard, "form", "Họ tên người đăng ký trong đơn online không khớp CSDL", "distance(tên online, CSDL) > NAME_MATCH_DIST_MAX"),
-    ExtractionError(ErrorCode.registered_user_birth, ErrorLayer.pre_extract, Severity.hard, "form", "Ngày sinh người đăng ký trong đơn online không khớp CSDL", "ngày sinh online ≠ CSDL"),
-    ExtractionError(ErrorCode.registered_user_gender, ErrorLayer.pre_extract, Severity.hard, "form", "Giới tính người đăng ký không khớp CSDL", "giới tính online ≠ CSDL"),
-    ExtractionError(ErrorCode.registered_user_phone, ErrorLayer.pre_extract, Severity.soft, "form", "Số điện thoại người đăng ký trong đơn online không khớp CSDL", "Trường soft nên KHÔNG chặn, chỉ ghi chú (có thể đã đổi hợp lệ)"),
+    ExtractionError(ErrorCode.registered_user_not_found, ErrorLayer.pre_extract, Severity.hard, "form", "Số định danh khai online không có trong cơ sở thông tin (CCCD đăng ký không có trong CSDL).", "CCCD khai online không tồn tại trong bảng citizens"),
+    ExtractionError(ErrorCode.registered_user_name, ErrorLayer.pre_extract, Severity.hard, "form", "Trên đơn online, họ chữ đệm và tên được điền không khớp với thông tin của hộ mang CCCD.", "distance(tên online, CSDL) > NAME_MATCH_DIST_MAX"),
+    ExtractionError(ErrorCode.registered_user_birth, ErrorLayer.pre_extract, Severity.hard, "form", "Trên đơn online, ngày tháng năm sinh được điền không khớp với thông tin của hộ mang CCCD.", "ngày sinh online ≠ CSDL"),
+    ExtractionError(ErrorCode.registered_user_gender, ErrorLayer.pre_extract, Severity.hard, "form", "Trên đơn online, giới tính được điền khác với thông tin của hộ mang CCCD.", "giới tính online ≠ CSDL"),
+    ExtractionError(ErrorCode.registered_user_phone, ErrorLayer.pre_extract, Severity.soft, "form", "Trên đơn online, số điện thoại được điền khác với thông tin của hộ mang CCCD.", "Trường soft nên KHÔNG chặn, chỉ ghi chú (có thể đã đổi hợp lệ)"),
     ExtractionError(ErrorCode.registered_user_mail, ErrorLayer.pre_extract, Severity.soft, "form", "Email người đăng ký trong đơn online không khớp CSDL", "Trường soft nên KHÔNG chặn, chỉ ghi chú"),
     ExtractionError(ErrorCode.location_not_in_ward, ErrorLayer.pre_extract, Severity.hard, "form", "Địa chỉ đăng ký trong đơn online không thuộc phường tiếp nhận", "location_register không khớp (fuzzy) địa chỉ nào của phường"),
 
-    ExtractionError(ErrorCode.ct01_cccd_mismatch, ErrorLayer.same_person, Severity.hard, "form", "Thông tin người khai trong CT01 và người trong tờ khai online là KHÔNG cùng một người. Vui lòng xem lại. ", "OCR CCCD đủ 12 số nhưng ≠ registered_user_cccd"),
+    ExtractionError(ErrorCode.ct01_cccd_mismatch, ErrorLayer.same_person, Severity.hard, "form", "Thông tin người khai trong CT01 và người trong tờ khai online là KHÔNG cùng một người. Vui lòng xem lại đơn đã điền và hồ sơ đính kèm.", "OCR CCCD đủ 12 số nhưng ≠ registered_user_cccd"),
+    ExtractionError(ErrorCode.ct01_cccd_minor_name_ok, ErrorLayer.same_person, Severity.soft, "form", "Số định danh người khai trên CT01 lệch nhẹ so với đơn online nhưng họ tên trùng khớp — có thể do OCR đọc nhầm chữ số. Cán bộ vui lòng đối chiếu lại số định danh.", "OCR CCCD đủ 12 số, lệch ≤ CCCD_OCR_TYPO_MAX ký tự so với online VÀ họ tên khớp → không chặn, chỉ ghi chú"),
     ExtractionError(ErrorCode.ct01_person_unverified, ErrorLayer.same_person, Severity.hard, "form", "Thông tin người khai trong CT01 và người trong tờ khai online là KHÔNG cùng một người. Vui lòng xem lại", "OCR CCCD không đủ 12 số và họ tên cũng không khớp"),
 
     ExtractionError(ErrorCode.low_confidence, ErrorLayer.field_match, Severity.soft, "field", "Hệ thống không chắc về kết quả", "confidence OCR < OCR_CONF_MIN (0.80)"),

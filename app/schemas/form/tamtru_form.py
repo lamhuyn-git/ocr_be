@@ -31,8 +31,10 @@ class TamtruFormInput(BaseModel):
     registered_user_phone:  str | None = Field(default=None, max_length=20)
     registered_user_mail:   str | None = Field(default=None, max_length=255)
     register_content:       str | None = None
+    residence_until:        date | None = None  # thời hạn tạm trú đề nghị (đến ngày)
 
     _parse_birth = field_validator("registered_user_birth", mode="before")(_parse_date)
+    _parse_until = field_validator("residence_until", mode="before")(_parse_date)
 
 
 class TamtruFormCreate(BaseModel):
@@ -84,6 +86,7 @@ class TamtruFormResponse(BaseModel):
     registered_user_phone:  str | None
     registered_user_mail:   str | None
     register_content:       str | None
+    residence_until:        date | None = None
     created_at:             datetime
 
 
@@ -102,3 +105,4 @@ class TamtruFormDetailResponse(BaseModel):
     registered_user_phone:  str | None
     registered_user_mail:   str | None
     register_content:       str | None
+    residence_until:        date | None = None

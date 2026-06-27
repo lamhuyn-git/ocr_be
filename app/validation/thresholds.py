@@ -9,3 +9,7 @@ LIST_MATCH_DIST_MAX = 0.45
 
 # Distance tối đa coi như khớp họ tên người đăng ký (chặt hơn vì so 1-1, không phải dò danh sách).
 NAME_MATCH_DIST_MAX = 0.20
+
+# Số ký tự CCCD được phép lệch mà vẫn coi là OCR đọc nhầm (không phải người khác).
+# Khi CCCD lệch ≤ ngưỡng này NHƯNG họ tên khớp → hạ từ chặn cổng xuống need_review.
+CCCD_OCR_TYPO_MAX = 2

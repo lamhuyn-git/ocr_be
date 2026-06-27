@@ -103,6 +103,7 @@ class TamtruForm(Base):
     registered_user_phone  = Column(String(20), nullable=True)
     registered_user_mail   = Column(String(255), nullable=True)
     register_content       = Column(Text, nullable=True)
+    residence_until        = Column(Date, nullable=True)  # thời hạn tạm trú đề nghị (đến ngày)
     created_at         = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     form = relationship("Form", back_populates="tamtru")

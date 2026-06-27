@@ -3,6 +3,7 @@ from .decision import (PASS, REVIEW, ERROR, Verdict, decide_match, not_found, va
 from . import field_rules as FR
 from .text_match import digits_only
 from .thresholds import LIST_MATCH_DIST_MAX
+from app.services.extraction_error_catalog import ErrorCode
 
 
 FIELD_THANH_VIEN = "thanh_vien_cung_thay_doi"
@@ -51,11 +52,11 @@ def validate_ho_thay_doi(ocr_fields, gt) -> dict[str, Verdict]:
         # Đánh dấu các field phụ thuộc là REVIEW (không thể đối chiếu khi CCCD sai)
         for fname in FR.CITIZEN_COMPARE:
             ftext, _ = _txt(ocr_fields, fname)
-            val_resuls[fname] = Verdict(REVIEW, "CCCD không hợp lệ — không thể đối chiếu thông tin", None, None, None, ftext)
+            val_resuls[fname] = Verdict(REVIEW, "CCCD không hợp lệ — không thể đối chiếu thông tin", None, None, None, ftext, code=ErrorCode.cccd_invalid_cant_compare)
     else:
         citizen_gt = gt.lookup_citizen(cccd_text)    # Đúng format thì dô lục coi có key là CCCD không
         if citizen_gt:
-            val_resuls[FR.KEY_CCCD_NGUOI_DK] = Verdict(PASS, "CCCD có tồn tại trong CSDL",None, 0.0, cccd_text, cccd_text)
+            val_resuls[FR.KEY_CCCD_NGUOI_DK] = Verdict(PASS, "CCCD có tồn tại trong CSDL",None, 0.0, cccd_text, cccd_text, code=ErrorCode.registrant_found)
             # Dò tiếp các field ho_ten", "ngay_sinh", "gioi_tinh", "so_dien_thoai", "email"
             for fname, dbkey in FR.CITIZEN_COMPARE.items():
                 ftext, fconf = _txt(ocr_fields, fname)
@@ -72,7 +73,7 @@ def validate_ho_thay_doi(ocr_fields, gt) -> dict[str, Verdict]:
             # Đánh dấu các field phụ thuộc là REVIEW (không tìm thấy citizen để đối chiếu)
             for fname in FR.CITIZEN_COMPARE:
                 ftext, _ = _txt(ocr_fields, fname)
-                val_resuls[fname] = Verdict(REVIEW, "CCCD không tìm thấy trong CSDL — không thể đối chiếu thông tin", None, None, None, ftext)
+                val_resuls[fname] = Verdict(REVIEW, "CCCD không tìm thấy trong CSDL — không thể đối chiếu thông tin", None, None, None, ftext, code=ErrorCode.cccd_notfound_cant_compare)
     return val_resuls
 
 
@@ -84,7 +85,7 @@ def validate_de_nghi(ocr_fields, register_content) -> dict[str, Verdict]:
     nd_text, nd_conf = _txt(ocr_fields, FR.FIELD_NOI_DUNG)
     gt_addr = str(register_content or "").strip()
     if not gt_addr:
-        val_resuls[FR.FIELD_NOI_DUNG] = Verdict(REVIEW, "không có địa chỉ khai online để đối chiếu",None, None, None, nd_text)
+        val_resuls[FR.FIELD_NOI_DUNG] = Verdict(REVIEW, "không có địa chỉ khai online để đối chiếu",None, None, None, nd_text, code=ErrorCode.no_online_address)
     else:
         # Địa chỉ gõ tay → lệch coi như cần soát (soft), không đánh invalid cứng.
         val_resuls[FR.FIELD_NOI_DUNG] = decide_match(nd_text, gt_addr, nd_conf, soft=True)
@@ -104,7 +105,7 @@ def validate_de_nghi(ocr_fields, register_content) -> dict[str, Verdict]:
         val_resuls[FR.KEY_CCCD_CHU_HO] = bad
     elif validate_number_format(cccd_dk, "cccd") is not None:
         val_resuls[FR.KEY_CCCD_CHU_HO] = Verdict(REVIEW, "CCCD người đăng ký sai định dạng — chưa so được với chủ hộ",
-                                                 None, None, None, cccd_ch)
+                                                 None, None, None, cccd_ch, code=ErrorCode.cccd_dk_bad_cant_compare_chuho)
     else:
         val_resuls[FR.KEY_CCCD_CHU_HO] = decide_match(digits_only(cccd_ch), digits_only(cccd_dk),
                                                       cccd_ch_conf, soft=True)
@@ -124,4 +125,4 @@ def validate_thanh_vien(ocr_fields) -> dict[str, Verdict]:
         return {}
     text, _ = _txt(ocr_fields, FIELD_THANH_VIEN)
     return {FIELD_THANH_VIEN: Verdict(REVIEW, "thành viên cùng thay đổi — cán bộ tự soát",
-                                      None, None, None, text)}
+                                      None, None, None, text, code=ErrorCode.thanh_vien_manual)}

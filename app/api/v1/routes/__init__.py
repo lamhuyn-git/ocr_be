@@ -12,6 +12,8 @@ from app.api.v1.routes.form_results import router as form_results_router
 from app.api.v1.routes.citizens import router as citizens_router
 from app.api.v1.routes.uploads import router as uploads_router
 from app.api.v1.routes.org_addresses import router as org_addresses_router
+from app.api.v1.routes.ws import router as ws_router
+from app.api.v1.routes.notification import router as notification_router
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth_router)
@@ -27,3 +29,5 @@ api_router.include_router(form_results_router)
 api_router.include_router(citizens_router)
 api_router.include_router(uploads_router)
 api_router.include_router(org_addresses_router)
+api_router.include_router(ws_router)
+api_router.include_router(notification_router)

@@ -18,7 +18,7 @@ from app.schemas.form.form_result import (  # noqa: F401
 from app.schemas.form.form import (  # noqa: F401
     FormCreate, FormDraftCreate, FormDraftUpdate, FormTransitionRequest,
     FormCreateResponse, FormResponse, FormDetailResponse, FormList, FormExtractResponse,
-    UserFormListItem, UserFormListResponse, UserFormCounts, 
+    UserFormListItem, UserFormListResponse, UserFormCounts, UserFormDetailResponse,
 )
 
 __all__ = [
@@ -30,5 +30,5 @@ __all__ = [
     "AdminSaveChangeRequest", "AdminSaveChangeFieldItem",
     "FormCreate", "FormDraftCreate", "FormDraftUpdate", "FormTransitionRequest",
     "FormCreateResponse", "FormResponse", "FormDetailResponse", "FormList", "FormExtractResponse",
-    "UserFormListItem", "UserFormListResponse", "UserFormCounts",
+    "UserFormListItem", "UserFormListResponse", "UserFormCounts", "UserFormDetailResponse",
 ]

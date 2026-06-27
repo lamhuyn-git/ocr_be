@@ -102,6 +102,29 @@ class FormDetailResponse(FormResponse):
 FormDetailResponse.model_rebuild()
 
 
+class UserFormDetailResponse(BaseModel):
+    """Chi tiết hồ sơ cho citizen xem lại CHÍNH hồ sơ mình nộp.
+
+    Chỉ chứa nội dung user đã khai (form + tamtru + evidences). Không kèm dữ liệu duyệt
+    nội bộ (validated_results, result_history, db_value, confirmed_by_email, review_note,
+    is_gate_rejected) — khác hẳn FormDetailResponse dành cho cán bộ.
+    """
+    id:               UUID
+    form_type_id:     UUID | None
+    org_id:           UUID | None
+    status:           str  # giá trị hiển thị: draft | submitted | returned
+    notification_on:  str | None = None
+    created_at:       datetime
+    updated_at:       datetime
+    ogr_detailliated: OrgDetailResponse | None = None
+    form_type_detail: FormTypeResponse | None = None
+    sumited_content:  TamtruFormDetailResponse | None = None
+    evidences:        FormEvidencesDetail = FormEvidencesDetail()
+
+
+UserFormDetailResponse.model_rebuild()
+
+
 class FormList(BaseModel):
     total:     int
     page:      int
