@@ -1,7 +1,7 @@
 from __future__ import annotations
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,6 +67,24 @@ async def create_citizen(
     await db.flush()
     await db.refresh(citizen)
     return citizen
+
+
+@router.get("/list", response_model=list[CitizenResponse], summary="List citizens")
+async def list_citizens(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    _: User = Depends(get_current_superuser),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = (
+        await db.execute(
+            select(Citizen)
+            .order_by(Citizen.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).scalars().all()
+    return list(rows)
 
 
 @router.get("", response_model=CitizenResponse, summary="Get citizen detail")
