@@ -31,7 +31,7 @@ async def create_organization(
     if body.province_id is not None and not await db.get(Province, body.province_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Province not found")
 
-    org = Organization(name=body.name, slug=body.slug, province_id=body.province_id)
+    org = Organization(name=body.name, slug=body.slug, province_id=body.province_id, is_active=True)
     db.add(org)
     await db.flush()
     await db.refresh(org)
@@ -97,6 +97,8 @@ async def update_organization(
         org.slug = body.slug
     if body.province_id is not None:
         org.province_id = body.province_id
+    if body.is_active is not None:
+        org.is_active = body.is_active
 
     await db.flush()
     await db.refresh(org)
@@ -109,10 +111,10 @@ async def delete_organization(
     _: User = Depends(get_current_superuser),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a ward. Super_admin only."""
+    """Delete a ward. Super_admin only. Soft-delete bằng is_active = False."""
     org = await db.get(Organization, org_id)
     if org:
-        await db.delete(org)
+        org.is_active = False
 
 
 # --- Members (cán bộ phường = ward_officer). Staff management is super_admin only. ---

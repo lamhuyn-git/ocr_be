@@ -10,12 +10,14 @@ class OrgCreate(BaseModel):
     name: str = Field(min_length=2, max_length=255)
     slug: str = Field(min_length=2, max_length=100, pattern=r"^[a-z0-9-]+$")
     province_id: UUID | None = None
+    is_active: bool = True
 
 
 class OrgUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=255)
     slug: str | None = Field(default=None, min_length=2, max_length=100, pattern=r"^[a-z0-9-]+$")
     province_id: UUID | None = None
+    is_active: bool | None = None
 
 
 class MemberResponse(BaseModel):
@@ -36,6 +38,7 @@ class OrgResponse(BaseModel):
     slug: str
     org_type: str
     province_id: UUID | None
+    is_active: bool
     created_at: datetime
     updated_at: datetime
     members: list[MemberResponse] = []
@@ -47,6 +50,7 @@ class OrgDetailResponse(BaseModel):
     name: str
     slug: str
     org_type: str
+    is_active: bool
 
 class WardListItem(BaseModel):
     """Lightweight ward entry — for the citizen ward picker (no member data)."""
@@ -56,6 +60,7 @@ class WardListItem(BaseModel):
     name: str
     slug: str
     org_type: str
+    is_active: bool
 
 
 class AddMemberRequest(BaseModel):

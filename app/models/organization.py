@@ -1,6 +1,6 @@
 import enum
 import uuid
-from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, UniqueConstraint
+from sqlalchemy import Boolean, Column, String, DateTime, Enum, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -20,6 +20,7 @@ class Organization(Base):
     org_type = Column(String(20), nullable=False, server_default="phuong")  # phuong | xa | dac_khu
     province_id = Column(UUID(as_uuid=True), ForeignKey("provinces.id", ondelete="SET NULL"),
                          nullable=True, index=True)
+    is_active = Column(Boolean, nullable=False, server_default="true", index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

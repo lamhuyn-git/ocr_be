@@ -7,11 +7,13 @@ from uuid import UUID
 class ProvinceCreate(BaseModel):
     name: str = Field(min_length=2, max_length=255)
     slug: str | None = Field(default=None, max_length=100, description="Tự sinh từ name nếu bỏ trống")
+    is_active: bool = True
 
 
 class ProvinceUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=255)
     slug: str | None = Field(default=None, max_length=100)
+    is_active: bool | None = None
 
 
 class ProvinceResponse(BaseModel):
@@ -20,5 +22,6 @@ class ProvinceResponse(BaseModel):
     id: UUID
     name: str
     slug: str
+    is_active: bool
     created_at: datetime
     updated_at: datetime

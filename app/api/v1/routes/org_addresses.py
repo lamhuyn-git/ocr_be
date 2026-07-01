@@ -35,7 +35,7 @@ async def create_org_address(
 ):
     """Tạo địa chỉ do phường quản lý. Super_admin only."""
     await _assert_org_exists(db, body.org_id)
-    addr = OrgAddress(org_id=body.org_id, dia_chi=body.dia_chi, is_active=body.is_active)
+    addr = OrgAddress(org_id=body.org_id, dia_chi=body.dia_chi, is_active=True)
     db.add(addr)
     await db.flush()
     await db.refresh(addr)
@@ -92,7 +92,7 @@ async def delete_org_address(
     _: User = Depends(get_current_superuser),
     db: AsyncSession = Depends(get_db),
 ):
-    """Xoá địa chỉ phường quản lý. Super_admin only."""
+    """Xoá địa chỉ phường quản lý. Super_admin only. Soft-delete bằng is_active = False."""
     addr = await db.get(OrgAddress, addr_id)
     if addr:
-        await db.delete(addr)
+        addr.is_active = False

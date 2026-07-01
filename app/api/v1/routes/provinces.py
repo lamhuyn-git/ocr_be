@@ -45,10 +45,9 @@ async def create_province(
     _: User = Depends(get_current_superuser),
     db: AsyncSession = Depends(get_db),
 ):
-    """Tạo tỉnh. Super_admin only."""
     slug = body.slug or slugify(body.name)
     await _assert_unique(db, name=body.name, slug=slug)
-    province = Province(name=body.name, slug=slug)
+    province = Province(name=body.name, slug=slug, is_active=True)
     db.add(province)
     await db.flush()
     await db.refresh(province)
@@ -80,7 +79,6 @@ async def update_province(
     _: User = Depends(get_current_superuser),
     db: AsyncSession = Depends(get_db),
 ):
-    """Chỉnh sửa thông tin tỉnh. Super_admin only."""
     province = await _get_or_404(province_id, db)
     new_name = body.name if body.name is not None else None
     new_slug = body.slug if body.slug is not None else None
@@ -89,6 +87,8 @@ async def update_province(
         province.name = new_name
     if new_slug is not None:
         province.slug = new_slug
+    if body.is_active is not None:
+        province.is_active = body.is_active
     await db.flush()
     await db.refresh(province)
     return province
@@ -100,7 +100,6 @@ async def delete_province(
     _: User = Depends(get_current_superuser),
     db: AsyncSession = Depends(get_db),
 ):
-    """Xoá tỉnh. Super_admin only. Organization thuộc tỉnh sẽ có province_id = NULL (FK SET NULL)."""
     province = await db.get(Province, province_id)
     if province:
-        await db.delete(province)
+        province.is_active = False
