@@ -7,6 +7,7 @@ from app.api.v1.routes.form import router as form_router
 from app.api.v1.routes.form_types import router as form_types_router
 from app.api.v1.routes.form_templates import router as form_templates_router
 from app.api.v1.routes.tamtru_forms import router as tamtru_forms_router
+from app.api.v1.routes.temporary_residences import router as temporary_residences_router
 from app.api.v1.routes.evidences import router as evidences_router
 from app.api.v1.routes.form_results import router as form_results_router
 from app.api.v1.routes.citizens import router as citizens_router
@@ -24,6 +25,7 @@ api_router.include_router(form_router)
 api_router.include_router(form_types_router)
 api_router.include_router(form_templates_router)
 api_router.include_router(tamtru_forms_router)
+api_router.include_router(temporary_residences_router)
 api_router.include_router(evidences_router)
 api_router.include_router(form_results_router)
 api_router.include_router(citizens_router)
